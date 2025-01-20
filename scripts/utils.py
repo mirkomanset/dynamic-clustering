@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import copy
 import re
+import os
 
 
 def get_colors():
@@ -233,3 +234,16 @@ def anim_data(data, title=''):
   ani = animation.FuncAnimation(fig, update_plot, frames=len(x), interval=10)
   ani.save(f'{title}_animation.mp4')
   print('Animation saved!')
+
+def clean_directory(directory_path):
+  try:
+    for filename in os.listdir(directory_path):
+      file_path = os.path.join(directory_path, filename)
+      if os.path.isfile(file_path):
+        os.remove(file_path)
+      elif os.path.isdir(file_path):
+        clean_directory(file_path)
+    os.rmdir(directory_path)
+    print(f"Directory '{directory_path}' and its contents removed successfully.")
+  except OSError as e:
+    print(f"Error removing directory '{directory_path}': {e}")

@@ -50,7 +50,7 @@ class DynamicClusterer:
     self.id = randint(10000, 99999)
     print(f'New model created - id: {self.id}')
 
-    self.directory = f'/content/{self.id}'
+    self.directory = f'./plots/{self.id}'
     os.makedirs(self.directory, exist_ok=True)
 
     # Fit model into reference data
@@ -300,8 +300,8 @@ class DynamicClusterer:
     self.plots = []
 
   # Draw gif
-  def draw_gif(self, title=''):
-    with imageio.get_writer(f'/content/{self.id}/{title}.gif', mode='I', duration=1000) as writer:
+  def draw_gif(self, title='title'):
+    with imageio.get_writer(f'plots/{self.id}/{title}.gif', mode='I', duration=1000) as writer:
       for filename in self.plots:
           image = imageio.v2.imread(filename)
           writer.append_data(image)
@@ -314,3 +314,6 @@ class DynamicClusterer:
       if plot_img:
         plt.show()
         plt.close('all')
+
+  def get_id(self):
+    return self.id
