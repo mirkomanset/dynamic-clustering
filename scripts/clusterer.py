@@ -152,6 +152,7 @@ class CluStream(base.Clusterer):
       self._mc_centers = {i: mc.center for i, mc in self.micro_clusters.items()}
 
       sil = []
+      wcss = 0
       mc_centers_list = []
       for element in list(self._mc_centers.values()):
         mc_centers_list.append(list(dict(element).values()))
@@ -170,17 +171,29 @@ class CluStream(base.Clusterer):
         s = silhouette_score(mc_centers_array, labels, metric = 'euclidean')
         sil.append(s)
 
+        # Compute wcss score for the solution k=2
+        if k == 2:
+            wcss_2 = self._kmeans_mc.inertia_
+    
+
       # Find best k
       self.best_k = sil.index(max(sil)) + 2
-      # Apply final clustering using the best k
 
+      # Compare the wcss to k=1 when the best solution found with silhouette is k=2
+      if self.best_k == 2:
+        self._kmeans_mc = KMeans(n_clusters=1, random_state=self.seed)
+        self._kmeans_mc.fit(mc_centers_array)
+        wcss_1 = self._kmeans_mc.inertia_
+        if wcss_1 < wcss_2:
+            self.best_k = 1
+
+      # Apply final clustering using the best k
       mc_grouped = [[] for _ in range(self.best_k)]
 
       self._kmeans_mc = KMeans(n_clusters=self.best_k, random_state=self.seed)
       self._kmeans_mc.fit(mc_centers_array)
 
       for center in self._mc_centers.values():
-
 
           center_formatted = np.array(list(center.values())).reshape(1, -1)
 
