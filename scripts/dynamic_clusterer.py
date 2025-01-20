@@ -35,7 +35,7 @@ def compute_avg_distance(x, microclusters):
 class DynamicClusterer:
 
   # Initialization: it receives the reference data and the model and initializes the instance
-  def __init__(self, data, model, colors, dist_t_factor=0.9, radius_t_factor=0.5, x_limits=(-5,20), y_limits=(-5,20), threshold=10):
+  def __init__(self, data, model, drift_detector, colors, x_limits=(-5,20), y_limits=(-5,20), threshold=10):
 
     self.model = model
     self.colors = colors
@@ -45,7 +45,7 @@ class DynamicClusterer:
     self.x_limits = x_limits
     self.y_limits = y_limits
 
-    self.drift_detector = drift.PageHinkley(threshold=threshold)
+    self.drift_detector = drift_detector
 
     self.id = randint(10000, 99999)
     print(f'New model created - id: {self.id}')
@@ -74,19 +74,16 @@ class DynamicClusterer:
     # Set of microclusters
     self.microclusters = self.model.get_microclusters()
 
-    # Initialize PHT
+    # Initialize drift detector
     for x, _ in stream.iter_array(self.data):
       dist = compute_avg_distance(x, self.microclusters)
       self.drift_detector.update(dist)
 
-    # Snapshot mechanism to keep trace of the relevant changes
+    # Snapshot mechanism to keep trace of the evolution of clustering
     self.snapshots = []
     snapshot = Snapshot(copy.deepcopy(self.microclusters), copy.deepcopy(self.macroclusters), copy.deepcopy(self.model), copy.deepcopy(self.k), copy.deepcopy(self.timestamp))
     self.snapshots.append(snapshot)
 
-    # Parameters for detecting relevant internal changes
-    self.dist_threshold_factor = dist_t_factor
-    self.radius_threshold_factor = radius_t_factor
 
     # Data for prod
     self.prod = []
@@ -141,7 +138,6 @@ class DynamicClusterer:
 
   def trigger_macroclustering(self, print_statistics=False, print_results=False, print_graph=False, plot_img=True):
 
-    relevant_change_flag = False # Flag to find if a relevant change is detected
 
     self.model.apply_macroclustering()
 
@@ -167,10 +163,8 @@ class DynamicClusterer:
     to_remove = []
     for cur_cluster in self.macroclusters:
       if is_in_any_sublist(cur_cluster['id'], values_list)==False:
-        relevant_change_flag = True
         to_remove.append(cur_cluster)
     if len(to_remove) > 0:
-      relevant_change_flag = True
       for r in to_remove:
         self.macroclusters.remove(r) # Update our macroclusters by removing the disappearing ones
         print(f'(!) {r["center"]} disappeared')
@@ -192,25 +186,14 @@ class DynamicClusterer:
 
               print(f'{old_cluster["center"]} survived as {new_cluster["center"]}')
 
-              # In order to detect a relevant change we compare the clustering with the clustering of the last snapshot
-              # Referential clustering to detect shifting and dimensional changes
+              # Compare actual solution with the last snapshot
               last_snapshot = self.snapshots[-1]
               # Compare the internal transition with the last snapshot
               for l in range(len(last_snapshot.macroclusters)):
                 last_snapshot_cluster = last_snapshot.macroclusters[l]
                 # When the corresponding cluster in the last snapshot clustering is found
                 if last_snapshot_cluster['id'] == mapping[j][0]:
-                  max_dist = self.dist_threshold_factor * max(last_snapshot_cluster['radius'], new_cluster['radius'])
-                  dist, r_ratio = internal_transition(last_snapshot_cluster, new_cluster)
                   break
-
-              if dist > max_dist: # type: ignore
-                print(f'(!) But a relevant center movement detected: dist={dist}')
-                relevant_change_flag = True
-
-              if r_ratio < self.radius_threshold_factor or r_ratio > 1/self.radius_threshold_factor:
-                print(f'(!) But a relevant radius update detected: ratio={r_ratio}')
-                relevant_change_flag = True
 
               # Update surviving macroclusters
               surviving_clusters.append(old_cluster['id'])
@@ -223,7 +206,6 @@ class DynamicClusterer:
             # The first one is updated, the other are added to currant clustering following the lowest ID policy
             else:
               print(f'(!) {old_cluster["center"]} survived as {new_cluster["center"]} but a splitting is needed')
-              relevant_change_flag = True
               current_ids_list = []
               for i in range(len(self.macroclusters)):
                 current_ids_list.append(self.macroclusters[i]['id'])
@@ -235,7 +217,6 @@ class DynamicClusterer:
       # It happens whe 2 or more clusters survive in the same cluster
       # We update every cluster and later the duplicates are removed
       elif j in mapping and len(mapping[j]) > 1:
-        relevant_change_flag = True
         merged_list = []
         for m in self.macroclusters:
           for k in range(len(mapping[j])):
@@ -247,7 +228,6 @@ class DynamicClusterer:
 
       # Manage appearing cluster
       else:
-        relevant_change_flag = True
         current_ids_list = []
         for i in range(len(self.macroclusters)):
           current_ids_list.append(self.macroclusters[i]['id'])
@@ -258,17 +238,15 @@ class DynamicClusterer:
     # Remove duplicates to handle merging clusters
     self.macroclusters = keep_first_occurrences(self.macroclusters)
 
-    # If relevant change is detected we append a new snapshot
+    # Append always the new snapshot
     
-    relevant_change_flag = True ##############àà Set it always relevann
-    if relevant_change_flag:
-      print()
-      print(f'(!) Relevant change in macroclustering detected new snaphost at timestamp: {self.timestamp} -----> Update referential result')
-      print()
-      print('-----------------------------------------------------------------------------------')
-      print()
-      snapshot = Snapshot(copy.deepcopy(self.microclusters), copy.deepcopy(self.macroclusters), copy.deepcopy(self.model), copy.deepcopy(self.k), copy.deepcopy(self.timestamp))
-      self.snapshots.append(snapshot)
+    print()
+    print(f'(!) Macroclustering triggered at timestamp: {self.timestamp} -----> Update referential result')
+    print()
+    print('-----------------------------------------------------------------------------------')
+    print()
+    snapshot = Snapshot(copy.deepcopy(self.microclusters), copy.deepcopy(self.macroclusters), copy.deepcopy(self.model), copy.deepcopy(self.k), copy.deepcopy(self.timestamp))
+    self.snapshots.append(snapshot)
 
     # Call plotting whenever we fit the new prof
     self.plot_clustered_data(plot_img=plot_img)
