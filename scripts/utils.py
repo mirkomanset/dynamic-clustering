@@ -67,6 +67,12 @@ def is_in_any_sublist(element, list_of_lists):
       return True
   return False
 
+def count_occurrences_in_sublists(element, list_of_lists):
+  count = 0
+  for sublist in list_of_lists:
+    count += sublist.count(element)
+  return count
+
 # Given an element and a list of lists, it returns true if the element is in at least two of the sublists
 # It is used in mapping fucntion to check if an old cluster is splitted in 2 or more clusters
 
@@ -149,7 +155,7 @@ def get_snapshot_image(snapshot, colors, x_limits=(-5, 20), y_limits=(-5, 20)):
 
   plt.legend()
   plt.title(f'Snapshot at {snapshot.timestamp}')
-  plt.axis('equal')
+  #plt.axis('equal')
   plt.xlim(x_limits)
   plt.ylim(y_limits)
   plt.figure(figsize=(10, 10))
@@ -247,3 +253,21 @@ def clean_directory(directory_path):
     print(f"Directory '{directory_path}' and its contents removed successfully.")
   except OSError as e:
     print(f"Error removing directory '{directory_path}': {e}")
+
+
+def sublist_present(sublist, list_of_sublists):
+  """
+  Checks if a sublist is present in a list of sublists, regardless of order.
+
+  Args:
+    sublist: The sublist to check.
+    list_of_sublists: The list of sublists to search in.
+
+  Returns:
+    True if the sublist is found in any of the sublists in the list_of_sublists, 
+    False otherwise.
+  """
+  for sublist_in_list in list_of_sublists:
+    if set(sublist) == set(sublist_in_list):
+      return True
+  return False

@@ -50,7 +50,7 @@ def MEC(clusters_ref, clusters_prod, print_statistics=False, print_results=False
         print(f'distance of centers: {dist} - sum of radius: {cref_radius + cprod_radius}',)
         print()
 
-      if dist < (cref_radius + cprod_radius):
+      if dist < (cref_radius + cprod_radius): ##########################à change this to adjust the overlapping criteria
         c_name_ref = 'ref' + str(clusters_ref[i]['id'])
         c_name_prod = 'prod' + str(j)
         G.add_edge(c_name_ref, c_name_prod)

@@ -152,7 +152,7 @@ class CluStream(base.Clusterer):
       self._mc_centers = {i: mc.center for i, mc in self.micro_clusters.items()}
 
       sil = []
-      wcss = 0
+      wcss_2 = 0
       mc_centers_list = []
       for element in list(self._mc_centers.values()):
         mc_centers_list.append(list(dict(element).values()))
@@ -175,7 +175,6 @@ class CluStream(base.Clusterer):
         if k == 2:
             wcss_2 = self._kmeans_mc.inertia_
     
-
       # Find best k
       self.best_k = sil.index(max(sil)) + 2
 

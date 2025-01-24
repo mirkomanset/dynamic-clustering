@@ -95,7 +95,7 @@ class DynamicClusterer:
     self.print_macro_cluster()
 
     # Plot reference clustering
-    self.plot_clustered_data(plot_img=True)
+    # self.plot_clustered_data(plot_img=True)
 
   # Get centers and radii
   def get_macroclusters_centers(self):
@@ -169,6 +169,11 @@ class DynamicClusterer:
         self.macroclusters.remove(r) # Update our macroclusters by removing the disappearing ones
         print(f'(!) {r["center"]} disappeared')
 
+
+
+    ########################## change here
+
+
     # Manage surviving clusters
     surviving_clusters = []
     old_macroclusters = copy.deepcopy(self.macroclusters) # Save a copy of current macroclustering for comparisons while updating the real instance
@@ -214,7 +219,7 @@ class DynamicClusterer:
             break
 
       # Manage merging clusters
-      # It happens whe 2 or more clusters survive in the same cluster
+      # It happens when 2 or more clusters survive in the same cluster
       # We update every cluster and later the duplicates are removed
       elif j in mapping and len(mapping[j]) > 1:
         merged_list = []
@@ -240,8 +245,6 @@ class DynamicClusterer:
 
     # Append always the new snapshot
     
-    print()
-    print(f'(!) Macroclustering triggered at timestamp: {self.timestamp} -----> Update referential result')
     print()
     print('-----------------------------------------------------------------------------------')
     print()
