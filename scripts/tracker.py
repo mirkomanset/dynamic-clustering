@@ -2,12 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import networkx as nx
 
-
-
 # MEC algorithm for tracking
 # Based on overlapping and bipartite graph
 
-def MEC(clusters_ref, clusters_prod, print_statistics=False, print_results=False, print_graph=False):
+def MEC(clusters_ref, clusters_prod, print_statistics=False, print_results=False, print_graph=False, overlapping_factor=1):
   n_clusters_ref = len(clusters_ref)
   n_clusters_prod = len(clusters_prod)
 
@@ -17,9 +15,9 @@ def MEC(clusters_ref, clusters_prod, print_statistics=False, print_results=False
   active_clusters_prod = []
 
   for i in range(n_clusters_ref):
-      c_name_ref = 'ref' + str(clusters_ref[i]['id'])
+      c_name_ref = 'ref' + str(clusters_ref[i].get_id())
       G.add_node(c_name_ref, bipartite=0)
-      active_clusters_ref.append(clusters_ref[i]['id'])
+      active_clusters_ref.append(clusters_ref[i].get_id())
       color_map.append('lightskyblue')
 
   for i in range(n_clusters_prod):
@@ -35,23 +33,23 @@ def MEC(clusters_ref, clusters_prod, print_statistics=False, print_results=False
   radius_difference = {}
 
   for i in range(n_clusters_ref):
-    cref_radius = clusters_ref[i]['radius']
-    cref_center = clusters_ref[i]['center']
+    cref_radius = clusters_ref[i].get_radius()
+    cref_center = clusters_ref[i].get_center()
 
     for j in range(n_clusters_prod):
-      cprod_radius = clusters_prod[j]['radius']
-      cprod_center = clusters_prod[j]['center']
+      cprod_radius = clusters_prod[j].get_radius()
+      cprod_center = clusters_prod[j].get_center()
 
       dist = np.linalg.norm(np.array(cref_center) - np.array(cprod_center))
 
       if print_statistics:
-        print(f'ref{clusters_ref[i]["id"]} - center: {cref_center} - radius: {cref_radius}')
+        print(f'ref{clusters_ref[i].get_id()} - center: {cref_center} - radius: {cref_radius}')
         print(f'prod{j} - center: {cprod_center} - radius: {cprod_radius}')
         print(f'distance of centers: {dist} - sum of radius: {cref_radius + cprod_radius}',)
         print()
 
-      if dist < (cref_radius + cprod_radius): ##########################à change this to adjust the overlapping criteria
-        c_name_ref = 'ref' + str(clusters_ref[i]['id'])
+      if dist < overlapping_factor*(cref_radius + cprod_radius): ########################## change this to adjust the overlapping criteria
+        c_name_ref = 'ref' + str(clusters_ref[i].get_id())
         c_name_prod = 'prod' + str(j)
         G.add_edge(c_name_ref, c_name_prod)
 
@@ -64,7 +62,7 @@ def MEC(clusters_ref, clusters_prod, print_statistics=False, print_results=False
     plt.show()
 
   for i in range(len(active_clusters_ref)):
-    active_clusters_ref[i] = 'ref' + str(clusters_ref[i]['id'])
+    active_clusters_ref[i] = 'ref' + str(clusters_ref[i].get_id())
 
   for i in range(len(active_clusters_prod)):
     active_clusters_prod[i] = 'prod' + str(active_clusters_prod[i])
