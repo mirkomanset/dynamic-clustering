@@ -1,51 +1,99 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-import copy
 import re
 import os
 
 
 def get_colors():
-    colors = ['rosybrown', 'goldenrod','mediumturquoise', 'darkslateblue',
-          'darkred', 'darkkhaki', 'teal', 'mediumorchid',
-          'linen', 'lightgreen', 'slategray', 'lightpink',
-          'indianred', 'gold', 'lightcyan', 'blueviolet',
-          'coral', 'yellow', 'powderblue', 'fuchsia'
-          ]
-    print(f'number of colors defined: {len(colors)}')
+    """Generate a list of distinct colors.
+
+    Returns:
+        list[str]: list of distinct colors.
+    """
+    colors = [
+        "rosybrown",
+        "goldenrod",
+        "mediumturquoise",
+        "darkslateblue",
+        "darkred",
+        "darkkhaki",
+        "teal",
+        "mediumorchid",
+        "linen",
+        "lightgreen",
+        "slategray",
+        "lightpink",
+        "indianred",
+        "gold",
+        "lightcyan",
+        "blueviolet",
+        "coral",
+        "yellow",
+        "powderblue",
+        "fuchsia",
+    ]
+    print(f"number of colors defined: {len(colors)}")
     return colors
 
-# Print legend to have a correspondance between numbers and colors
+
 def legend(n):
-  colors = get_colors()
-  for i in range(n):
-    print(f'{i}: {colors[i]}')
+    """Print legend to have a correspondance between numbers and colors
+
+    Args:
+        n (int): number of colors to print
+    """
+    colors = get_colors()
+    for i in range(n):
+        print(f"{i}: {colors[i]}")
+
 
 def extract_integer(s):
-    match = re.search(r'\d+', s)
+    """Extract the integer from the given string.
+
+    Args:
+        s (str): alphanumeric string
+
+    Returns:
+        int | None: integer extracted from the string, or None if no integer found
+    """
+    match = re.search(r"\d+", s)
     if match:
         return int(match.group())
     else:
         return None
 
 
-# Custom function to compute the radius of cluster obtained using kmeans
-# It simply return the average distance betweena all points and the centroid
-
 def compute_radius(points, centroid):
-  if points.size == 0:  # Check if points array is empty
-    return 0  # Return 0 as radius for empty cluster
-  distances = np.linalg.norm(points - centroid, axis=1)
-  radius = np.average(distances)
-  return radius
+    """Custom function to compute the radius of cluster obtained using kmeans.
+    It simply return the average distance betweena all points and the centroid.
 
-# Function to find the first missing positive number
-# It is used to assign the smaller ID to new appearring cluster
-# Useful when a cluster disappears and then a new one appears: we can give to the new one the ID of the old one
-# Avoid to go out of colors
+    Args:
+        points (np.array): points in the cluster
+        centroid (np.array): centroid of the cluster
+
+    Returns:
+        float: radius of the cluster
+    """
+    if points.size == 0:  # Check if points array is empty
+        return 0  # Return 0 as radius for empty cluster
+    distances = np.linalg.norm(points - centroid, axis=1)
+    radius = np.average(distances)
+    return radius
+
 
 def find_missing_positive(nums):
+    """Function to find the first missing positive number.
+    It is used to assign the smaller ID to new appearring cluster.
+    Useful when a cluster disappears and then a new one appears: we can give to the new one the ID of the old one.
+    Avoid to go out of colors.
+
+    Args:
+        nums (list[int]): list of numbers
+
+    Returns:
+        int: first positive number not present in the list
+    """
     n = len(nums)
     # Mark visited numbers by negating them
     for i in range(n):
@@ -58,241 +106,304 @@ def find_missing_positive(nums):
             return i + 1
     return n + 1
 
-# Given an element and a list of lists, it returns true if the element is in at least one of the sublists
-# It is used in mapping function to check if the old cluster is survived in at least one of the current clusters
-
-def is_in_any_sublist(element, list_of_lists):
-  for sublist in list_of_lists:
-    if element in sublist:
-      return True
-  return False
 
 def count_occurrences_in_sublists(element, list_of_lists):
-  count = 0
-  for sublist in list_of_lists:
-    count += sublist.count(element)
-  return count
+    """Count occurances of an element in a list of sublists
 
-# Given an element and a list of lists, it returns true if the element is in at least two of the sublists
-# It is used in mapping fucntion to check if an old cluster is splitted in 2 or more clusters
+    Args:
+        element (Any): element to count occurrences of
+        list_of_lists (list[list]): list of sublists
 
-def appears_in_at_least_two_sublists(element, list_of_lists):
+    Returns:
+        int: number of occurances of the element in the list of sublists
+    """
     count = 0
     for sublist in list_of_lists:
-        if element in sublist:
-            count += 1
-            if count >= 2:
-                return True
-    return False
+        count += sublist.count(element)
+    return count
 
-
-# given a list of dictionaries (eg macroclusters) it keeps only the first occurances and remove the duplicates
-# It is used when a clusters survives in 2 or more clusters (ie splitted)
-# Update only the first one and the others are considered generated by the split (assigning the first available color)
 
 def keep_first_occurrences(clusters):
+    """
+
+    Args:
+        clusters (list[Macrocluster]): list of macroclusters
+
+    Returns:
+        list[Macrocluster]: list of macroclusters with first occurrence of each
+    """
     seen = set()
     result = []
     for obj in clusters:
-      if obj not in seen:
-        seen.add(obj)
-        result.append(obj)
+        if obj not in seen:
+            seen.add(obj)
+            result.append(obj)
     return result
 
 
-# Given two macroclusters (ideally the same one that survived ie m1 survived as m2) it returns the internal transitions
-# namely the distance between the centers and ratio between radii
+def internal_transition(m1, m2):
+    """Given two macroclusters (ideally the same one that survived ie m1 survived as m2) it returns the internal transitions
+    namely the distance between the centers and ratio between radii
 
-def internal_transition(m1,m2):
-  c1 = m1.get_center()
-  c2 = m2.get_center()
-  r1 = m1.get_radius()
-  r2 = m2.get_radius()
+    Args:
+        m1 (Macrocluster): first macrocluster
+        m2 (Macrocluster): second macrocluster
 
-  dist = np.linalg.norm(np.array(c1) - np.array(c2))
-  radius_ratio = r1/r2
+    Returns:
+        float, float: distance between centers and ratio between radii
+    """
+    c1 = m1.get_center()
+    c2 = m2.get_center()
+    r1 = m1.get_radius()
+    r2 = m2.get_radius()
 
-  return dist, radius_ratio
+    dist = np.linalg.norm(np.array(c1) - np.array(c2))
+    radius_ratio = r1 / r2
+
+    return dist, radius_ratio
 
 
-# Function to get the fig of clustered image
+#
+
 
 def get_snapshot_image(snapshot, colors, x_limits=(-5, 20), y_limits=(-5, 20)):
+    """Function to get the fig of clustered image.
 
-  centers = [d.get_center() for d in snapshot.macroclusters]
-  radii = [d.get_radius() for d in snapshot.macroclusters]
+    Args:
+        snapshot (Snaphot): snapshot object
+        colors (list[str]): list
+        x_limits (tuple, optional): x-axis limits. Defaults to (-5, 20).
+        y_limits (tuple, optional): y-axis limits. Defaults to (-5, 20).
+
+    Returns:
+        fig: figure object built with matplotlib.pyplot
+    """
+    centers = [d.get_center() for d in snapshot.macroclusters]
+    radii = [d.get_radius() for d in snapshot.macroclusters]
+
+    # labels = [[] for _ in range(snapshot.k)]
+
+    fig, ax = plt.subplots()
+    for i in range(snapshot.microclusters.shape[0]):
+        prediction = snapshot.model.predict_one(
+            {0: snapshot.microclusters[i, 0], 1: snapshot.microclusters[i, 1]}
+        )
+
+        closest_centroid = snapshot.model.macroclusters[prediction]
+        closest_centroid_center = closest_centroid["center"]
+        # closest_centroid_radius = closest_centroid["radius"]
+
+        color = "k"
+
+        for element in snapshot.macroclusters:
+            if element.get_center() == closest_centroid_center:
+                color = colors[element.get_id()]
+                break
+        plt.scatter(
+            snapshot.microclusters[i, 0],
+            snapshot.microclusters[i, 1],
+            alpha=0.5,
+            color=color,
+        )
+
+    plt.scatter(
+        np.array(centers)[:, 0],
+        np.array(centers)[:, 1],
+        alpha=1,
+        color="k",
+        label="centers",
+    )
+    for i in range(len(centers)):
+        center = centers[i]
+        radius = radii[i]
+        circle = plt.Circle(center, radius, color="black", fill=False)
+        plt.scatter(center[0], center[1], alpha=1, color="black")
+        ax.add_patch(circle)
+
+    plt.legend()
+    plt.title(f"Snapshot at {snapshot.timestamp}")
+    # plt.axis('equal')
+    plt.xlim(x_limits)
+    plt.ylim(y_limits)
+    plt.figure(figsize=(10, 10))
+
+    return fig
 
 
-  labels = [[] for _ in range(snapshot.k)]
+def circular_trajectory(
+    center_x, center_y, radius, num_points, start_angle=0, end_angle=2 * np.pi
+):
+    """Generates a circular trajectory centered at (center_x, center_y).
 
-  fig, ax = plt.subplots()
-  for i in range(snapshot.microclusters.shape[0]):
-    prediction = snapshot.model.predict_one({0: snapshot.microclusters[i, 0], 1: snapshot.microclusters[i, 1]})
+    Args:
+      center_x: x-coordinate of the center.
+      center_y: y-coordinate of the center.
+      radius: Radius of the circle.
+      num_points: Number of points in the trajectory.
+      start_angle: Starting angle in radians (default: 0).
+      end_angle: Ending angle in radians (default: 2*pi).
 
-    closest_centroid = snapshot.model.macroclusters[prediction]
-    closest_centroid_center = closest_centroid['center']
-    closest_centroid_radius = closest_centroid['radius']
+    Returns:
+      A list of tuples, where each tuple represents an (x, y) coordinate.
+    """
 
-    color = 'k'
+    theta = np.linspace(start_angle, end_angle, num_points)
+    x = center_x + radius * np.cos(theta)
+    y = center_y + radius * np.sin(theta)
 
-    for element in snapshot.macroclusters:
-      if element.get_center() == closest_centroid_center:
-        color = colors[element.get_id()]
-        break
-    plt.scatter(snapshot.microclusters[i, 0], snapshot.microclusters[i, 1], alpha=0.5, color=color)
-
-  plt.scatter(np.array(centers)[:, 0], np.array(centers)[:, 1], alpha=1, color='k', label='centers')
-  for i in range(len(centers)):
-    center = centers[i]
-    radius = radii[i]
-    circle = plt.Circle(center, radius, color='black', fill=False)
-    plt.scatter(center[0], center[1], alpha=1, color='black')
-    ax.add_patch(circle)
-
-  plt.legend()
-  plt.title(f'Snapshot at {snapshot.timestamp}')
-  #plt.axis('equal')
-  plt.xlim(x_limits)
-  plt.ylim(y_limits)
-  plt.figure(figsize=(10, 10))
-
-  return fig
-
-
-def circular_trajectory(center_x, center_y, radius, num_points, start_angle=0, end_angle=2*np.pi):
-  """Generates a circular trajectory centered at (center_x, center_y).
-
-  Args:
-    center_x: x-coordinate of the center.
-    center_y: y-coordinate of the center.
-    radius: Radius of the circle.
-    num_points: Number of points in the trajectory.
-    start_angle: Starting angle in radians (default: 0).
-    end_angle: Ending angle in radians (default: 2*pi).
-
-  Returns:
-    A list of tuples, where each tuple represents an (x, y) coordinate.
-  """
-
-  theta = np.linspace(start_angle, end_angle, num_points)
-  x = center_x + radius * np.cos(theta)
-  y = center_y + radius * np.sin(theta)
-
-  return list(zip(x, y))
+    return list(zip(x, y))
 
 
 def linear_trajectory(start_point, end_point, num_points):
-  """Generates a linear trajectory between two points.
+    """Generates a linear trajectory between two points.
 
-  Args:
-    start_point: A tuple representing the starting point (x1, y1).
-    end_point: A tuple representing the ending point (x2, y2).
-    num_points: The number of points in the trajectory.
+    Args:
+      start_point: A tuple representing the starting point (x1, y1).
+      end_point: A tuple representing the ending point (x2, y2).
+      num_points: The number of points in the trajectory.
 
-  Returns:
-    A list of tuples, where each tuple represents an (x, y) coordinate on the trajectory.
-  """
+    Returns:
+      A list of tuples, where each tuple represents an (x, y) coordinate on the trajectory.
+    """
 
-  x1, y1 = start_point
-  x2, y2 = end_point
+    x1, y1 = start_point
+    x2, y2 = end_point
 
-  x = np.linspace(x1, x2, num_points)
-  y = np.linspace(y1, y2, num_points)
+    x = np.linspace(x1, x2, num_points)
+    y = np.linspace(y1, y2, num_points)
 
-  return list(zip(x, y))
+    return list(zip(x, y))
 
 
 def plot_data(data):
-  # Assuming your data has two features
-  x = data[:, 0]
-  y = data[:, 1]
+    """Function to plot the data.
 
-  plt.scatter(x, y, alpha=0.1)
+    Args:
+        data (np.array): data to be plotted, shape (n_samples, 2)
+    """
+    # Assuming your data has two features
+    x = data[:, 0]
+    y = data[:, 1]
 
-  plt.axis('equal')
-  plt.xlim(-50, 50)
-  plt.ylim(-50, 50)
-  plt.figure(figsize=(10, 10))
-  plt.show()
+    plt.scatter(x, y, alpha=0.1)
+
+    plt.axis("equal")
+    plt.xlim(-50, 50)
+    plt.ylim(-50, 50)
+    plt.figure(figsize=(10, 10))
+    plt.show()
+
 
 def get_data(means, std_devs, n_samples):
-  data = []
-  covs = [np.diag(std_dev**2) for std_dev in std_devs]
-  # Derive n_samples for each distribution
-  for mean, cov in zip(means, covs):
-      data.append(np.random.multivariate_normal(mean, cov, n_samples))
-  data = np.array(data)
-  data = data.reshape(data.shape[0] * data.shape[1], data.shape[2])
-  np.random.shuffle(data)
-  return data
+    """Function to generate data from multiple Gaussian distributions.
 
-def anim_data(data, title=''):
-  # Assuming your data has two features
-  x = data[:, 0]
-  y = data[:, 1]
+    Args:
+        means (list[float]): list of the means of the gaussians
+        std_devs (list[float]): list of the standard deviations of the gaussians
+        n_samples (int): number of samples to generate for each distribution
 
-  # Create a figure and axis
-  fig, ax = plt.subplots()
-  ax.set_xlim(-50, 50)
-  ax.set_ylim(-50, 50)
-  ax.axis('equal')
+    Returns:
+        np.array: pointed dataset with n_samples points from each Gaussian distribution
+    """
+    data = []
+    covs = [np.diag(std_dev**2) for std_dev in std_devs]
+    # Derive n_samples for each distribution
+    for mean, cov in zip(means, covs):
+        data.append(np.random.multivariate_normal(mean, cov, n_samples))
+    data = np.array(data)
+    data = data.reshape(data.shape[0] * data.shape[1], data.shape[2])
+    np.random.shuffle(data)
+    return data
 
-  # Initialize an empty scatter plot
-  scatter = ax.scatter([], [], s=10)
 
-  def update_plot(i):
-    scatter.set_offsets(np.vstack((scatter.get_offsets().data, [[x[i], y[i]]])))
+def anim_data(data, title=""):
+    """Build an animation .mp4 given a dataset.
+    It adds one point at every frame to see how data arrive.
 
-  # Create the animation
-  ani = animation.FuncAnimation(fig, update_plot, frames=len(x), interval=10)
-  ani.save(f'{title}_animation.mp4')
-  print('Animation saved!')
+    Args:
+        data (np.array): 2d data to animate.
+        title (str, optional): title to give to the animated file. Defaults to "".
+    """
+    # Assuming your data has two features
+    x = data[:, 0]
+    y = data[:, 1]
+
+    # Create a figure and axis
+    fig, ax = plt.subplots()
+    ax.set_xlim(-50, 50)
+    ax.set_ylim(-50, 50)
+    ax.axis("equal")
+
+    # Initialize an empty scatter plot
+    scatter = ax.scatter([], [], s=10)
+
+    def update_plot(i):
+        scatter.set_offsets(np.vstack((scatter.get_offsets().data, [[x[i], y[i]]])))
+
+    # Create the animation
+    ani = animation.FuncAnimation(fig, update_plot, frames=len(x), interval=10)
+    ani.save(f"{title}_animation.mp4")
+    print("Animation saved!")
+
 
 def clean_directory(directory_path):
-  try:
-    for filename in os.listdir(directory_path):
-      file_path = os.path.join(directory_path, filename)
-      if os.path.isfile(file_path):
-        os.remove(file_path)
-      elif os.path.isdir(file_path):
-        clean_directory(file_path)
-    os.rmdir(directory_path)
-    print(f"Directory '{directory_path}' and its contents removed successfully.")
-  except OSError as e:
-    print(f"Error removing directory '{directory_path}': {e}")
+    """
+    Clean directory by removing all its elements and the directory itself
+
+    Args:
+        directory_path (str): directory path to be cleaned.
+    """
+
+    try:
+        for filename in os.listdir(directory_path):
+            file_path = os.path.join(directory_path, filename)
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+            elif os.path.isdir(file_path):
+                clean_directory(file_path)
+        os.rmdir(directory_path)
+        print(f"Directory '{directory_path}' and its contents removed successfully.")
+    except OSError as e:
+        print(f"Error removing directory '{directory_path}': {e}")
 
 
 def sublist_present(sublist, list_of_sublists):
-  """
-  Checks if a sublist is present in a list of sublists, regardless of order.
+    """
+    Checks if a sublist is present in a list of sublists, regardless of order.
 
-  Args:
-    sublist: The sublist to check.
-    list_of_sublists: The list of sublists to search in.
+    Args:
+      sublist: The sublist to check.
+      list_of_sublists: The list of sublists to search in.
 
-  Returns:
-    True if the sublist is found in any of the sublists in the list_of_sublists, 
-    False otherwise.
-  """
-  for sublist_in_list in list_of_sublists:
-    if set(sublist) == set(sublist_in_list):
-      return True
-  return False
+    Returns:
+      True if the sublist is found in any of the sublists in the list_of_sublists,
+      False otherwise.
+    """
+    for sublist_in_list in list_of_sublists:
+        if set(sublist) == set(sublist_in_list):
+            return True
+    return False
+
 
 def find_closest_cluster(new_cluster, macroclusters):
-  """
-  Finds the closest cluster to a given centroid.
+    """
+    Finds the closest cluster to a given centroid.
 
-  Args:
-    centroid: The centroid to find the closest cluster to.
-    macroclusters: A list of macroclusters.
+    Args:
+      centroid: The centroid to find the closest cluster to.
+      macroclusters: A list of macroclusters.
 
-  Returns:
-    The the closest cluster in the list of macroclusters.
-  """
-  if len(macroclusters) != 0:
-    distances = [np.linalg.norm(np.array(new_cluster.get_center()) - np.array(cluster.get_center())) for cluster in macroclusters]
-    return macroclusters[np.argmin(distances)]
-  else:
-     print("List length = 0 ---> Returning 0")
-     return 0
+    Returns:
+      The the closest cluster in the list of macroclusters.
+    """
+    if len(macroclusters) != 0:
+        distances = [
+            np.linalg.norm(
+                np.array(new_cluster.get_center()) - np.array(cluster.get_center())
+            )
+            for cluster in macroclusters
+        ]
+        return macroclusters[np.argmin(distances)]
+    else:
+        print("List length = 0 ---> Returning 0")
+        return 0

@@ -5,38 +5,38 @@ from random import randint
 import imageio
 import os
 
-from river import stream, drift
-from scripts.utils import (extract_integer, 
-                           is_in_any_sublist, 
-                           count_occurrences_in_sublists, 
-                           find_missing_positive, 
-                           get_snapshot_image, 
-                           keep_first_occurrences, 
-                           internal_transition, 
-                           sublist_present, 
-                           find_closest_cluster
+from river import stream
+from scripts.utils import (
+    extract_integer,
+    count_occurrences_in_sublists,
+    find_missing_positive,
+    get_snapshot_image,
+    #keep_first_occurrences,
+    sublist_present,
+    find_closest_cluster,
 )
 from scripts.tracker import MEC
 
 
 # Snapshot class to keep the information about the current situation of micro/macro clusters and model
 
+
 class Snapshot:
+    def __init__(self, microclusters, macroclusters, model, k, timestamp):
+        self.microclusters = microclusters
+        self.macroclusters = macroclusters
+        self.timestamp = timestamp
+        self.model = model
+        self.k = k
 
-  def __init__(self, microclusters, macroclusters, model, k, timestamp):
-
-    self.microclusters = microclusters
-    self.macroclusters = macroclusters
-    self.timestamp = timestamp
-    self.model = model
-    self.k = k
 
 def compute_avg_distance(x, microclusters):
-  temp_list = []
-  for mc in microclusters:
-    point = list(x.values())
-    temp_list.append(np.linalg.norm(np.array(point) - np.array(mc)))
-  return min(temp_list)
+    temp_list = []
+    for mc in microclusters:
+        point = list(x.values())
+        temp_list.append(np.linalg.norm(np.array(point) - np.array(mc)))
+    return min(temp_list)
+
 
 def overlapping_score(cluster1, cluster2, overlapping_factor=1):
     center1 = cluster1.get_center()
@@ -47,34 +47,35 @@ def overlapping_score(cluster1, cluster2, overlapping_factor=1):
     dist = np.linalg.norm(np.array(center1) - np.array(center2))
     return 2 ** (-(dist / (overlapping_factor * (radius1 + radius2))))
 
-class Macrocluster: 
-  def __init__ (self, id=0, center=0, radius=0):
-    self.id = id
-    self.center = center
-    self.radius = radius
 
-  def get_id(self):
-    return self.id
-  
-  def get_center(self):
-    return self.center
-  
-  def get_radius(self):
-    return self.radius
-  
-  def update_id(self, new_id):
-    self.id = new_id
-  
-  def update_center(self, new_center):
-    self.center = new_center
+class Macrocluster:
+    def __init__(self, id=0, center=0, radius=0):
+        self.id = id
+        self.center = center
+        self.radius = radius
 
-  def update_radius(self, new_radius):
-    self.radius = new_radius
+    def get_id(self):
+        return self.id
 
-  def __str__(self):
-    return f"(id: {self.id} - cen: {np.round(self.center,2)} - rad: {np.round(self.radius,2)})"
-  
-  def __eq__(self, other):
+    def get_center(self):
+        return self.center
+
+    def get_radius(self):
+        return self.radius
+
+    def update_id(self, new_id):
+        self.id = new_id
+
+    def update_center(self, new_center):
+        self.center = new_center
+
+    def update_radius(self, new_radius):
+        self.radius = new_radius
+
+    def __str__(self):
+        return f"(id: {self.id} - cen: {np.round(self.center,2)} - rad: {np.round(self.radius,2)})"
+
+    def __eq__(self, other):
         """
         Defines the behavior of the '==' operator for MyClass objects.
 
@@ -87,309 +88,420 @@ class Macrocluster:
         if not isinstance(other, Macrocluster):
             return NotImplemented  # Indicate that comparison is not supported
         return (self.center == other.center) and (self.radius == other.radius)
-  
-  def __hash__(self):
-      """
-      Defines the hash value for the object.
 
-      Returns:
-        A hash value based on the 'center' and 'radius' attributes.
-        If 'center' or 'radius' are lists, they are converted to tuples for hashing.
-      """
-      # Convert center and radius to tuples if they are lists
-      center_tuple = tuple(self.center) if isinstance(self.center, list) else self.center
-      radius_tuple = tuple(self.radius) if isinstance(self.radius, list) else self.radius
+    def __hash__(self):
+        """
+        Defines the hash value for the object.
 
-      # Return the hash of a tuple containing center and radius
-      return hash((center_tuple, radius_tuple))
+        Returns:
+          A hash value based on the 'center' and 'radius' attributes.
+          If 'center' or 'radius' are lists, they are converted to tuples for hashing.
+        """
+        # Convert center and radius to tuples if they are lists
+        center_tuple = (
+            tuple(self.center) if isinstance(self.center, list) else self.center
+        )
+        radius_tuple = (
+            tuple(self.radius) if isinstance(self.radius, list) else self.radius
+        )
+
+        # Return the hash of a tuple containing center and radius
+        return hash((center_tuple, radius_tuple))
 
 
 # Main Class that wrapped the model, data and clustering
 
+
 class DynamicClusterer:
+    # Initialization: it receives the reference data and the model and initializes the instance
+    def __init__(
+        self,
+        data,
+        model,
+        drift_detector,
+        colors,
+        x_limits=(-5, 20),
+        y_limits=(-5, 20),
+        threshold=10,
+    ):
+        self.model = model
+        self.colors = colors
+        self.data = data
+        self.timestamp = 0
 
-  # Initialization: it receives the reference data and the model and initializes the instance
-  def __init__(self, data, model, drift_detector, colors, x_limits=(-5,20), y_limits=(-5,20), threshold=10):
+        self.x_limits = x_limits
+        self.y_limits = y_limits
 
-    self.model = model
-    self.colors = colors
-    self.data = data
-    self.timestamp = 0
+        self.drift_detector = drift_detector
 
-    self.x_limits = x_limits
-    self.y_limits = y_limits
+        self.id = randint(10000, 99999)
+        print(f"New model created - id: {self.id}")
 
-    self.drift_detector = drift_detector
+        self.directory = f"./plots/{self.id}"
+        os.makedirs(self.directory, exist_ok=True)
 
-    self.id = randint(10000, 99999)
-    print(f'New model created - id: {self.id}')
+        # Fit model into reference data
+        for x, _ in stream.iter_array(self.data):
+            self.model.learn_one(x)
 
-    self.directory = f'./plots/{self.id}'
-    os.makedirs(self.directory, exist_ok=True)
+        # Apply macroclustering on reference
+        self.model.apply_macroclustering()
 
-    # Fit model into reference data
-    for x, _ in stream.iter_array(self.data):
-      self.model.learn_one(x)
+        # Number of macroclusters
+        self.k = self.model.best_k
 
-    # Apply macroclustering on reference
-    self.model.apply_macroclustering()
+        # Save a list of macroclusters
+        self.macroclusters = []
 
-    # Number of macroclusters
-    self.k = self.model.best_k
+        for i in range(len(self.model.macroclusters)):
+            m = self.model.macroclusters[i]
+            new_macrocluster = Macrocluster(
+                id=i, center=m["center"], radius=m["radius"]
+            )
+            self.macroclusters.append(new_macrocluster)
 
-    # Save a list of macroclusters
-    self.macroclusters = []
+        # Set of microclusters
+        self.microclusters = self.model.get_microclusters()
 
-    for i in range(len(self.model.macroclusters)):
-       m = self.model.macroclusters[i]
-       new_macrocluster = Macrocluster(id=i, center=m['center'], radius=m['radius'])
-       self.macroclusters.append(new_macrocluster)
+        # Initialize drift detector
+        for x, _ in stream.iter_array(self.data):
+            dist = compute_avg_distance(x, self.microclusters)
+            self.drift_detector.update(dist)
 
-    # Set of microclusters
-    self.microclusters = self.model.get_microclusters()
+        # Snapshot mechanism to keep trace of the evolution of clustering
+        self.snapshots = []
+        snapshot = Snapshot(
+            copy.deepcopy(self.microclusters),
+            copy.deepcopy(self.macroclusters),
+            copy.deepcopy(self.model),
+            copy.deepcopy(self.k),
+            copy.deepcopy(self.timestamp),
+        )
+        self.snapshots.append(snapshot)
 
-    # Initialize drift detector
-    for x, _ in stream.iter_array(self.data):
-      dist = compute_avg_distance(x, self.microclusters)
-      self.drift_detector.update(dist)
+        # Data for prod
+        self.prod = []
 
-    # Snapshot mechanism to keep trace of the evolution of clustering
-    self.snapshots = []
-    snapshot = Snapshot(copy.deepcopy(self.microclusters), copy.deepcopy(self.macroclusters), copy.deepcopy(self.model), copy.deepcopy(self.k), copy.deepcopy(self.timestamp))
-    self.snapshots.append(snapshot)
+        # Saved plots
+        self.plots = []
 
+        # Print the reference clustering
+        self.print_macro_clusters()
 
-    # Data for prod
-    self.prod = []
+        # Plot reference clustering
+        # self.plot_clustered_data(plot_img=True)
 
-    # Saved plots
-    self.plots = []
+    # Print macrocluster informations
+    def print_macro_clusters(self):
+        for element in self.macroclusters:
+            print(element)
 
-    # Print the reference clustering
-    self.print_macro_clusters()
+    # Update prod data
+    def receive_prod(self, data):
+        self.prod = data
 
-    # Plot reference clustering
-    # self.plot_clustered_data(plot_img=True)
+    # Fit prod data
+    def fit_prod_data(
+        self,
+        print_statistics=False,
+        print_results=False,
+        print_graph=False,
+        plot_img=True,
+        macroclustering_at_end=True,
+    ):
+        # Fit the new data: online phase
+        for x, _ in stream.iter_array(self.prod):
+            self.timestamp += 1
+            self.model.learn_one(x)
+            dist = compute_avg_distance(x, self.microclusters)
+            self.drift_detector.update(dist)
+            if self.drift_detector.drift_detected:
+                print(
+                    f"<!> Change detected! Possible input drift at timestamp {self.timestamp} ----> Apply macroclustering <!>"
+                )
+                self.trigger_macroclustering(
+                    print_statistics=print_statistics,
+                    print_results=print_results,
+                    print_graph=print_graph,
+                    plot_img=plot_img,
+                )
 
-  # Print macrocluster informations
-  def print_macro_clusters(self):
-    for element in self.macroclusters:
-      print(element)
+        # Apply macroclustering at the end of the batch
+        # Note that we do not save the the new macroclustering now
+        if macroclustering_at_end:
+            print("Batch Finished ----> Apply macroclustering")
+            self.trigger_macroclustering(
+                print_statistics=print_statistics,
+                print_results=print_results,
+                print_graph=print_graph,
+                plot_img=plot_img,
+            )
 
-  # Update prod data
-  def receive_prod(self, data):
-    self.prod = data
+    def trigger_macroclustering(
+        self,
+        print_statistics=True,
+        print_results=False,
+        print_graph=False,
+        plot_img=True,
+    ):
+        self.model.apply_macroclustering()
 
-  # Fit prod data
-  def fit_prod_data(self, print_statistics=False, print_results=False, print_graph=False, plot_img=True, macroclustering_at_end=True):
+        # Update microclusters and new number of macrocluster
+        self.microclusters = self.model.get_microclusters()
+        self.k = self.model.best_k
 
-    # Fit the new data: online phase
-    for x, _ in stream.iter_array(self.prod):
-      self.timestamp += 1
-      self.model.learn_one(x)
-      dist = compute_avg_distance(x, self.microclusters)
-      self.drift_detector.update(dist)
-      if self.drift_detector.drift_detected:
-        print(f"<!> Change detected! Possible input drift at timestamp {self.timestamp} ----> Apply macroclustering <!>")
-        self.trigger_macroclustering(print_statistics=print_statistics, print_results=print_results, print_graph=print_graph, plot_img=plot_img)
+        # Prod data is cleaned
+        self.prod = []
 
-    # Apply macroclustering at the end of the batch
-    # Note that we do not save the the new macroclustering now
-    if macroclustering_at_end:
-      print('Batch Finished ----> Apply macroclustering')
-      self.trigger_macroclustering(print_statistics=print_statistics, print_results=print_results, print_graph=print_graph, plot_img=plot_img)
+        # Track transitions performed by MEC
+        # We compare the new clustering with the actual situation
 
+        new_clusters = []
+        for element in self.model.macroclusters:
+            m = Macrocluster(center=element["center"], radius=element["radius"])
+            new_clusters.append(m)
 
+        G = MEC(
+            self.macroclusters,
+            new_clusters,
+            print_statistics=print_statistics,
+            print_results=print_results,
+            print_graph=print_graph,
+        )
 
-  def trigger_macroclustering(self, print_statistics=True, print_results=False, print_graph=False, plot_img=True):
+        # Find mapping between current clustering and new clustering
+        mapping = {}
+        for edge in G.edges():
+            old_node, new_node = edge
+            # print(f'{old_node} <- {new_node}')
+            mapping.setdefault(extract_integer(old_node), []).append(
+                extract_integer(new_node)
+            )
 
+        # print(mapping)
 
-    self.model.apply_macroclustering()
+        values_list = list(mapping.values())
 
-    # Update microclusters and new number of macrocluster
-    self.microclusters = self.model.get_microclusters()
-    self.k = self.model.best_k
+        old_clusters = copy.deepcopy(self.macroclusters)
 
-    # Prod data is cleaned
-    self.prod = []
+        current_ids_list = []
+        updated_clusters = []
+        survived_clusters = []
+        appeared_clusters = []
+        disappeared_clusters = []
+        merged_clusters = []  # list of sublists that contains the IDs of the clusters that are merged
 
-    # Track transitions performed by MEC
-    # We compare the new clustering with the actual situation
-
-    new_clusters = []
-    for element in self.model.macroclusters:
-       m = Macrocluster(center=element['center'], radius=element['radius'])
-       new_clusters.append(m)
-
-    G = MEC(self.macroclusters, new_clusters, print_statistics=print_statistics, print_results=print_results, print_graph=print_graph)
-
-    # Find mapping between current clustering and new clustering
-    mapping = {}
-    for edge in G.edges():
-        old_node, new_node = edge
-        #print(f'{old_node} <- {new_node}')
-        mapping.setdefault(extract_integer(old_node), []).append(extract_integer(new_node))
-    
-    #print(mapping)
-
-    values_list =list(mapping.values())
-
-    current_ids_list = []
-    survived_clusters = []
-    appeared_clusters = []
-    disappeared_clusters = []
-    merged_clusters = [] # list of sublists that contains the IDs of the clusters that are merged
-
-    # Manage disappearance: check the nodes of self.macroclusters that have not any edge
-    for i in range(len(self.macroclusters)):
-        if self.macroclusters[i].get_id() not in mapping:
-            disappeared_clusters.append(self.macroclusters[i].get_id())
-            print(f'(!) {self.macroclusters[i]} DISAPPEARED')
-
-    for cluster in disappeared_clusters:
+        # Manage disappearance: check the nodes of self.macroclusters that have not any edge
         for i in range(len(self.macroclusters)):
-            if cluster == self.macroclusters[i].get_id() and cluster not in survived_clusters:
-                self.macroclusters.pop(i)
-                break
-    disappeared_clusters = []
-                            
-    # Manage appearance, surviving, splitting and merging
-    for i in range(len(self.macroclusters)):
-                current_ids_list.append(self.macroclusters[i].get_id())
+            if self.macroclusters[i].get_id() not in mapping:
+                closest_cluster = find_closest_cluster(
+                    self.macroclusters[i], new_clusters
+                )
+                print(closest_cluster)
+                score = 1 - overlapping_score(closest_cluster, self.macroclusters[i])
+                disappeared_clusters.append(self.macroclusters[i].get_id())
+                print(f"(!) {self.macroclusters[i]} DISAPPEARED (score: {score})")
 
-    for i in range(len(self.model.macroclusters)):
-        new_cluster = Macrocluster(id=0, center=self.model.macroclusters[i]['center'], radius=self.model.macroclusters[i]['radius'])
-
-        # Manage appearance
-        if count_occurrences_in_sublists(i, values_list) == 0:
-            closest_cluster = find_closest_cluster(new_cluster, self.macroclusters)
-            score=1-overlapping_score(closest_cluster, new_cluster)
-            new_id = find_missing_positive(current_ids_list)
-            current_ids_list.append(new_id)
-            new_cluster.update_id(new_id)
-            appeared_clusters.append(new_cluster)
-            print(f'(!) {new_cluster} APPEARED --- (score: {score})')
-
-        # Manage surviving and splitting
-        if count_occurrences_in_sublists(i, values_list) == 1: 
-            for j in range(len(self.macroclusters)): 
-                # Manage surviving
-                if i in mapping[self.macroclusters[j].get_id()] and self.macroclusters[j].get_id() not in survived_clusters:
-                    score=overlapping_score(self.macroclusters[j], new_cluster)
-                    print(f'{self.macroclusters[j]} SURVIVED as {new_cluster} (overlapping score: {score})')
-                    self.macroclusters[j].update_center(new_cluster.get_center())
-                    self.macroclusters[j].update_radius(new_cluster.get_radius())
-                    survived_clusters.append(self.macroclusters[j].get_id())
+        for cluster in disappeared_clusters:
+            for i in range(len(self.macroclusters)):
+                if (
+                    cluster == self.macroclusters[i].get_id()
+                    and cluster not in survived_clusters
+                ):
+                    self.macroclusters.pop(i)
                     break
-                # Manage splitting
-                if i in mapping[self.macroclusters[j].get_id()] and self.macroclusters[j].get_id() in survived_clusters: # Manage splitting
-                    score=overlapping_score(self.macroclusters[j], new_cluster)
-                    print(f'(!) {self.macroclusters[j]} SURVIVED as {new_cluster} but a SPLITTING is needed (overlapping score: {score})')
+        disappeared_clusters = []
+
+        # Manage appearance, surviving, splitting and merging
+        for i in range(len(self.macroclusters)):
+            current_ids_list.append(self.macroclusters[i].get_id())
+
+        for i in range(len(self.model.macroclusters)):
+            new_cluster = Macrocluster(
+                id=0,
+                center=self.model.macroclusters[i]["center"],
+                radius=self.model.macroclusters[i]["radius"],
+            )
+
+            # Manage appearance
+            if count_occurrences_in_sublists(i, values_list) == 0:
+                closest_cluster = find_closest_cluster(new_cluster, old_clusters)
+                score = 1 - overlapping_score(closest_cluster, new_cluster)
+                new_id = find_missing_positive(current_ids_list)
+                current_ids_list.append(new_id)
+                new_cluster.update_id(new_id)
+                appeared_clusters.append(new_cluster)
+                print(f"(!) {new_cluster} APPEARED --- (score: {score})")
+
+            # Manage surviving and splitting
+            if count_occurrences_in_sublists(i, values_list) == 1:
+                for j in range(len(self.macroclusters)):
+                    # Manage surviving
+                    if (
+                        i in mapping[self.macroclusters[j].get_id()]
+                        and self.macroclusters[j].get_id() not in survived_clusters
+                    ):
+                        new_cluster.update_id(self.macroclusters[j].get_id())
+                        score = overlapping_score(self.macroclusters[j], new_cluster)
+                        print(
+                            f"{self.macroclusters[j]} SURVIVED as {new_cluster} (score: {score})"
+                        )
+
+                        m = Macrocluster(
+                            id=new_cluster.get_id(),
+                            center=new_cluster.get_center(),
+                            radius=new_cluster.get_radius(),
+                        )
+                        updated_clusters.append(m)
+                        survived_clusters.append(self.macroclusters[j].get_id())
+                        break
+                    # Manage splitting
+                    if (
+                        i in mapping[self.macroclusters[j].get_id()]
+                        and self.macroclusters[j].get_id() in survived_clusters
+                    ):  # Manage splitting
+                        score = overlapping_score(self.macroclusters[j], new_cluster)
+                        new_id = find_missing_positive(current_ids_list)
+                        current_ids_list.append(new_id)
+                        new_cluster.update_id(new_id)
+                        appeared_clusters.append(new_cluster)
+                        print(
+                            f"(!) {self.macroclusters[j]} SURVIVED as {new_cluster} but a SPLITTING is needed (score: {score})"
+                        )
+                        break
+
+            # Manage merging
+            if count_occurrences_in_sublists(i, values_list) > 1:
+                from_clusters = []
+                overlapping_scores = []
+                for j in range(len(self.macroclusters)):
+                    if i in mapping[self.macroclusters[j].get_id()]:
+                        from_clusters.append(self.macroclusters[j].get_id())
+                        overlapping_scores.append(
+                            overlapping_score(self.macroclusters[j], new_cluster)
+                        )
+                        # Merging clusters are removed from the actual result
+                        if self.macroclusters[j].get_id() not in disappeared_clusters:
+                            disappeared_clusters.append(self.macroclusters[j].get_id())
+                if not sublist_present(from_clusters, merged_clusters):
+                    new_id = find_missing_positive(current_ids_list)
+                    current_ids_list.append(new_id)
+                    merged_clusters.append(from_clusters)
+                    new_cluster.update_id(new_id)
+                    appeared_clusters.append(new_cluster)
+                    print(
+                        f"(!) {[cluster for cluster in from_clusters]} are MERGED in {new_cluster} (overlapping scores: {overlapping_scores})"
+                    )
+
+                else:
                     new_id = find_missing_positive(current_ids_list)
                     current_ids_list.append(new_id)
                     new_cluster.update_id(new_id)
                     appeared_clusters.append(new_cluster)
+                    print(
+                        f"(!) {from_clusters} are MERGED in another cluster: {new_cluster} (overlapping scores: {overlapping_scores})"
+                    )
+
+        # Update macroclusters with new centers and radii
+        for cluster in updated_clusters:
+            for i in range(len(self.macroclusters)):
+                if cluster.get_id() == self.macroclusters[i].get_id():
+                    self.macroclusters[i].update_center(cluster.get_center())
+                    self.macroclusters[i].update_radius(cluster.get_radius())
                     break
-        
-         # Manage merging
-        if count_occurrences_in_sublists(i, values_list) > 1:
-            from_clusters = []
-            overlapping_scores = []
-            for j in range(len(self.macroclusters)):
-                #print(f"analyzing: {self.macroclusters[j]['id']} --- {self.macroclusters[j]['center']}")
-                if i in mapping[self.macroclusters[j].get_id()]:
-                    from_clusters.append(self.macroclusters[j].get_id())
-                    overlapping_scores.append(overlapping_score(self.macroclusters[j], new_cluster))
-                    # Merging clusters are removed from the actual result
-                    if self.macroclusters[j].get_id() not in disappeared_clusters:
-                        disappeared_clusters.append(self.macroclusters[j].get_id())
-            if not sublist_present(from_clusters, merged_clusters):
-              new_id = find_missing_positive(current_ids_list)
-              current_ids_list.append(new_id)
-              merged_clusters.append(from_clusters)
-              new_cluster.update_id(new_id)
-              appeared_clusters.append(new_cluster)
-              print(f'(!) {[cluster for cluster in from_clusters]} are MERGED in {new_cluster} (overlapping scores: {overlapping_scores})')
 
-            else:
-              new_id = find_missing_positive(current_ids_list)
-              current_ids_list.append(new_id)
-              new_cluster.update_id(new_id)
-              appeared_clusters.append(new_cluster)
-              print(f'(!) {from_clusters} are MERGED in another cluster: {new_cluster} (overlapping scores: {overlapping_scores})')
+        # Append appeared clusters to actual result
+        for cluster in appeared_clusters:
+            self.macroclusters.append(cluster)
 
-    # Append appeared clusters to actual result
-    for cluster in appeared_clusters:
-        self.macroclusters.append(cluster)
+        # Remove disappeared (merged) clusters from actual result
+        for cluster in disappeared_clusters:
+            for i in range(len(self.macroclusters)):
+                if (
+                    cluster == self.macroclusters[i].get_id()
+                    and cluster not in survived_clusters
+                ):
+                    self.macroclusters.pop(i)
+                    break
 
-    for cluster in disappeared_clusters:
-        for i in range(len(self.macroclusters)):
-            if cluster == self.macroclusters[i].get_id() and cluster not in survived_clusters:
-                self.macroclusters.pop(i)
-                break
+        # Remove duplicates to handle merging clusters
+        # self.macroclusters = keep_first_occurrences(self.macroclusters)
 
-    ########################## change here
+        print("Final macroclusters:")
+        for cluster in self.macroclusters:
+            print(cluster)
 
+        # Append always the new snapshot
 
-    # Remove duplicates to handle merging clusters
-    self.macroclusters = keep_first_occurrences(self.macroclusters)
+        print()
+        print(
+            "-----------------------------------------------------------------------------------"
+        )
+        print()
+        snapshot = Snapshot(
+            copy.deepcopy(self.microclusters),
+            copy.deepcopy(self.macroclusters),
+            copy.deepcopy(self.model),
+            copy.deepcopy(self.k),
+            copy.deepcopy(self.timestamp),
+        )
+        self.snapshots.append(snapshot)
 
-    print("Final macroclusters:")
-    for cluster in self.macroclusters:
-      print(cluster)
+        # Call plotting whenever we fit the new prof
+        self.plot_clustered_data(plot_img=plot_img)
 
-    # Append always the new snapshot
-    
-    print()
-    print('-----------------------------------------------------------------------------------')
-    print()
-    snapshot = Snapshot(copy.deepcopy(self.microclusters), copy.deepcopy(self.macroclusters), copy.deepcopy(self.model), copy.deepcopy(self.k), copy.deepcopy(self.timestamp))
-    self.snapshots.append(snapshot)
+    # Plot clustered microclusters and macroclusters
+    def plot_clustered_data(self, plot_img=True):
+        snapshot = Snapshot(
+            copy.deepcopy(self.microclusters),
+            copy.deepcopy(self.macroclusters),
+            copy.deepcopy(self.model),
+            copy.deepcopy(self.k),
+            copy.deepcopy(self.timestamp),
+        )
+        fig = get_snapshot_image(
+            snapshot, self.colors, x_limits=self.x_limits, y_limits=self.y_limits
+        )
+        # Plot only if needed (False by default)
+        # Save image in the directory of this specific instance (ID) (True by default)
+        # Append also in the plots list
+        fig.savefig(f"{self.directory}/temp_image_{len(self.plots)}.png")
+        self.plots.append(f"{self.directory}/temp_image_{len(self.plots)}.png")
+        if plot_img:
+            plt.show()
+        plt.close("all")
+        del snapshot
 
-    # Call plotting whenever we fit the new prof
-    self.plot_clustered_data(plot_img=plot_img)
+    # Get model
+    # Useful to call tracking externally
+    def get_model(self):
+        return self.model
 
+    # Clean plots if they are no more needed
+    def clean_plots(self):
+        for filename in self.plots:
+            os.remove(filename)
+        self.plots = []
 
-  # Plot clustered microclusters and macroclusters
-  def plot_clustered_data(self, plot_img=True):
-    snapshot = Snapshot(copy.deepcopy(self.microclusters), copy.deepcopy(self.macroclusters), copy.deepcopy(self.model), copy.deepcopy(self.k), copy.deepcopy(self.timestamp))
-    fig = get_snapshot_image(snapshot, self.colors, x_limits=self.x_limits, y_limits=self.y_limits)
-    # Plot only if needed (False by default)
-    # Save image in the directory of this specific instance (ID) (True by default)
-    # Append also in the plots list
-    fig.savefig(f'{self.directory}/temp_image_{len(self.plots)}.png')
-    self.plots.append(f'{self.directory}/temp_image_{len(self.plots)}.png')
-    if plot_img:
-      plt.show()
-    plt.close('all')
-    del snapshot
+    # Draw gif
+    def draw_gif(self, title="title"):
+        with imageio.get_writer(
+            f"plots/{self.id}/{title}.gif", mode="I", duration=1000
+        ) as writer:
+            for filename in self.plots:
+                image = imageio.v2.imread(filename)
+                writer.append_data(image)
 
-  # Get model
-  # Useful to call tracking externally
-  def get_model(self):
-    return self.model
+    # Draw only the snapshots
+    def draw_snapshots(self, plot_img=True):
+        for snapshot in self.snapshots:
+            fig = get_snapshot_image(
+                snapshot, self.colors, x_limits=self.x_limits, y_limits=self.y_limits
+            )
+            fig.savefig(f"{self.directory}/snapshot_{snapshot.timestamp}.png")
+            if plot_img:
+                plt.show()
+                plt.close("all")
 
-  # Clean plots if they are no more needed
-  def clean_plots(self):
-    for filename in self.plots:
-      os.remove(filename)
-    self.plots = []
-
-  # Draw gif
-  def draw_gif(self, title='title'):
-    with imageio.get_writer(f'plots/{self.id}/{title}.gif', mode='I', duration=1000) as writer:
-      for filename in self.plots:
-          image = imageio.v2.imread(filename)
-          writer.append_data(image)
-
-  # Draw only the snapshots
-  def draw_snapshots(self, plot_img=True):
-    for snapshot in self.snapshots:
-      fig = get_snapshot_image(snapshot, self.colors, x_limits=self.x_limits, y_limits=self.y_limits)
-      fig.savefig(f'{self.directory}/snapshot_{snapshot.timestamp}.png')
-      if plot_img:
-        plt.show()
-        plt.close('all')
-
-  def get_id(self):
-    return self.id
+    def get_id(self):
+        return self.id

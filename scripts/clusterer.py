@@ -10,7 +10,6 @@ from river import base, stats, utils
 from scripts.utils import compute_radius
 
 
-
 class CluStream(base.Clusterer):
     def __init__(
         self,
@@ -45,7 +44,6 @@ class CluStream(base.Clusterer):
 
         self.macroclusters = []
         self.best_k = 0
-
 
     def _maintain_micro_clusters(self, x, w):
         # Calculate the threshold to delete old micro-clusters
@@ -104,7 +102,7 @@ class CluStream(base.Clusterer):
 
     def learn_one(self, x, w=1.0):
         self._timestamp += 1
-        #print(self._timestamp, self._timestamp % self.time_gap)
+        # print(self._timestamp, self._timestamp % self.time_gap)
 
         if not self._initialized:
             self.micro_clusters[len(self.micro_clusters)] = CluStreamMicroCluster(
@@ -119,7 +117,7 @@ class CluStream(base.Clusterer):
             if len(self.micro_clusters) == self.max_micro_clusters:
                 self._initialized = True
 
-            #return
+            # return
 
         # Determine the closest micro-cluster with respect to the new point instance
         closest_id, closest_dist = self._get_closest_mc(x)
@@ -139,117 +137,114 @@ class CluStream(base.Clusterer):
 
         if closest_dist < radius:
             closest_mc.insert(x, w, self._timestamp)
-            #return
+            # return
 
         # If the new point does not fit in the micro-cluster, micro-clusters
         # whose relevance stamps are less than the threshold are deleted.
         # Otherwise, closest micro-clusters are merged with each other.
         self._maintain_micro_clusters(x=x, w=w)
 
-
-
     def apply_macroclustering(self):
-      self._mc_centers = {i: mc.center for i, mc in self.micro_clusters.items()}
+        self._mc_centers = {i: mc.center for i, mc in self.micro_clusters.items()}
 
-      sil = []
-      wcss_2 = 0
-      mc_centers_list = []
-      for element in list(self._mc_centers.values()):
-        mc_centers_list.append(list(dict(element).values()))
-      mc_centers_array = np.array(mc_centers_list)
+        sil = []
+        wcss_2 = 0
+        mc_centers_list = []
+        for element in list(self._mc_centers.values()):
+            mc_centers_list.append(list(dict(element).values()))
+        mc_centers_array = np.array(mc_centers_list)
 
-      # Multiple runs of kmeans to find the best k based on silhouette
-      for k in range(2, int(math.sqrt(len(self._mc_centers)))):
-      #for k in range(2, len(self._mc_centers)):
-        labels = []
+        # Multiple runs of kmeans to find the best k based on silhouette
+        for k in range(2, int(math.sqrt(len(self._mc_centers)))):
+            # for k in range(2, len(self._mc_centers)):
+            labels = []
 
-        self._kmeans_mc = KMeans(n_clusters=k, random_state=self.seed)
+            self._kmeans_mc = KMeans(n_clusters=k, random_state=self.seed)
+            self._kmeans_mc.fit(mc_centers_array)
+            labels = self._kmeans_mc.predict(mc_centers_array)
+
+            # Compute the silhouette
+            s = silhouette_score(mc_centers_array, labels, metric="euclidean")
+            sil.append(s)
+
+            # Compute wcss score for the solution k=2
+            if k == 2:
+                wcss_2 = self._kmeans_mc.inertia_
+
+        # Find best k
+        self.best_k = sil.index(max(sil)) + 2
+
+        # Compare the wcss to k=1 when the best solution found with silhouette is k=2
+        if self.best_k == 2:
+            self._kmeans_mc = KMeans(n_clusters=1, random_state=self.seed)
+            self._kmeans_mc.fit(mc_centers_array)
+            wcss_1 = self._kmeans_mc.inertia_
+            if wcss_1 < wcss_2:
+                self.best_k = 1
+
+        # Apply final clustering using the best k
+        mc_grouped = [[] for _ in range(self.best_k)]
+
+        self._kmeans_mc = KMeans(n_clusters=self.best_k, random_state=self.seed)
         self._kmeans_mc.fit(mc_centers_array)
-        labels = self._kmeans_mc.predict(mc_centers_array)
 
-        # Compute the silhouette
-        s = silhouette_score(mc_centers_array, labels, metric = 'euclidean')
-        sil.append(s)
+        for center in self._mc_centers.values():
+            center_formatted = np.array(list(center.values())).reshape(1, -1)
 
-        # Compute wcss score for the solution k=2
-        if k == 2:
-            wcss_2 = self._kmeans_mc.inertia_
-    
-      # Find best k
-      self.best_k = sil.index(max(sil)) + 2
+            index = self._kmeans_mc.predict(center_formatted)
+            index_formatted = int(index[0])
+            mc_grouped[index_formatted].append(list(center.values()))
 
-      # Compare the wcss to k=1 when the best solution found with silhouette is k=2
-      if self.best_k == 2:
-        self._kmeans_mc = KMeans(n_clusters=1, random_state=self.seed)
-        self._kmeans_mc.fit(mc_centers_array)
-        wcss_1 = self._kmeans_mc.inertia_
-        if wcss_1 < wcss_2:
-            self.best_k = 1
+        # Get cluster centers
+        cluster_centers = self._kmeans_mc.cluster_centers_
 
-      # Apply final clustering using the best k
-      mc_grouped = [[] for _ in range(self.best_k)]
+        # Create a dictionary to store cluster centers
+        cluster_centers_dict = {}
 
-      self._kmeans_mc = KMeans(n_clusters=self.best_k, random_state=self.seed)
-      self._kmeans_mc.fit(mc_centers_array)
+        for i, center in enumerate(cluster_centers):
+            cluster_centers_dict[i] = {j: center[j] for j in range(len(center))}
 
-      for center in self._mc_centers.values():
+        self.centers = cluster_centers_dict
 
-          center_formatted = np.array(list(center.values())).reshape(1, -1)
+        self.centers_list = []
+        for element in list(self.centers.values()):
+            self.centers_list.append(list(dict(element).values()))
+        # print(self.centers_list)
+        # print(mc_grouped)
 
-          index = self._kmeans_mc.predict(center_formatted)
-          index_formatted = int(index[0])
-          mc_grouped[index_formatted].append(list(center.values()))
+        self.macroclusters = []
+        for i in range(self.best_k):
+            center = list(dict(list(self.centers.values())[i]).values())
+            radius = compute_radius(np.array(mc_grouped[i]), center)
+            self.macroclusters.append({"center": center, "radius": radius})
 
-      # Get cluster centers
-      cluster_centers = self._kmeans_mc.cluster_centers_
-
-      # Create a dictionary to store cluster centers
-      cluster_centers_dict = {}
-
-      for i, center in enumerate(cluster_centers):
-          cluster_centers_dict[i] = {j: center[j] for j in range(len(center))}
-
-      self.centers = cluster_centers_dict
-
-      self.centers_list = []
-      for element in list(self.centers.values()):
-        self.centers_list.append(list(dict(element).values()))
-      #print(self.centers_list)
-      #print(mc_grouped)
-
-      self.macroclusters = []
-      for i in range(self.best_k):
-        center = list(dict(list(self.centers.values())[i]).values())
-        radius = compute_radius(np.array(mc_grouped[i]), center)
-        self.macroclusters.append({'center': center, 'radius': radius})
-
-      #print(self.macroclusters)
-      #print(self.centers_list)
-      #print(mc_grouped)
-      #print(self.radii)
-
+        # print(self.macroclusters)
+        # print(self.centers_list)
+        # print(mc_grouped)
+        # print(self.radii)
 
     def predict_one(self, x):
-        '''
+        """
         index, _ = self._get_closest_mc(x)
         try:
             return self._kmeans_mc.predict_one(self._mc_centers[index])
         except (KeyError, AttributeError):
             return 0
-        '''
+        """
         center_formatted = np.array(list(x.values())).reshape(1, -1)
         index = self._kmeans_mc.predict(center_formatted)
         index_formatted = int(index[0])
         return index_formatted
 
     def get_microclusters(self):
-      mc_centers_list = []
-      for element in list(self._mc_centers.values()):
-        mc_centers_list.append(list(dict(element).values()))
-      return np.array(mc_centers_list)
+        mc_centers_list = []
+        for element in list(self._mc_centers.values()):
+            mc_centers_list.append(list(dict(element).values()))
+        return np.array(mc_centers_list)
 
     def get_macroclusters(self):
-      return self.macroclusters
+        return self.macroclusters
+
 
 class CluStreamMicroCluster(base.Base):
     """Micro-cluster class."""
@@ -335,5 +330,7 @@ class CluStreamMicroCluster(base.Base):
 
     def __iadd__(self, other):
         self.var_time += other.var_time
-        self.var_x = {k: self.var_x[k] + other.var_x.get(k, stats.Var()) for k in self.var_x}
+        self.var_x = {
+            k: self.var_x[k] + other.var_x.get(k, stats.Var()) for k in self.var_x
+        }
         return self
