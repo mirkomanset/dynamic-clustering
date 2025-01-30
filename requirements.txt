@@ -5,3 +5,6 @@ scikit-learn
 networkx
 imageio
 river
+ucimlrepo
+umap-learn
+plotly
