@@ -22,6 +22,8 @@ from scripts.tracker import MEC
 
 
 class Snapshot:
+    """Snapshot class to keep the information about the current situation of micro/macro clusters and model""
+    """
     def __init__(self, microclusters, macroclusters, model, k, timestamp):
         self.microclusters = microclusters
         self.macroclusters = macroclusters
@@ -30,7 +32,16 @@ class Snapshot:
         self.k = k
 
 
-def compute_avg_distance(x, microclusters):
+def compute_min_distance(x, microclusters):
+    """function to compute the minimum distance from a point to any microcluster
+
+    Args:
+        x (np.array): point to be evaluated
+        microclusters (list[ClustreamMicrocluster]): list of microclusters
+
+    Returns:
+        float: minimum distance to any microcluster
+    """
     temp_list = []
     for mc in microclusters:
         point = list(x.values())
@@ -39,6 +50,16 @@ def compute_avg_distance(x, microclusters):
 
 
 def overlapping_score(cluster1, cluster2, overlapping_factor=1):
+    """Function to compute the overlapping score between two clusters.
+
+    Args:
+        cluster1 (Macrocluster): first cluster
+        cluster2 (Macrocluster): second cluster
+        overlapping_factor (int, optional): parameter to be defined. Defaults to 1.
+
+    Returns:
+        float: overlapping score between the two clusters
+    """
     center1 = cluster1.get_center()
     center2 = cluster2.get_center()
     radius1 = cluster1.get_radius()
@@ -49,6 +70,7 @@ def overlapping_score(cluster1, cluster2, overlapping_factor=1):
 
 
 class Macrocluster:
+    """Macrocluster class to represent macroclusters"""
     def __init__(self, id=0, center=0, radius=0):
         self.id = id
         self.center = center
@@ -77,7 +99,7 @@ class Macrocluster:
 
     def __eq__(self, other):
         """
-        Defines the behavior of the '==' operator for MyClass objects.
+        Defines the behavior of the '==' operator for Macrocluster objects.
 
         Args:
           other: The other object to compare with.
@@ -122,7 +144,6 @@ class DynamicClusterer:
         colors,
         x_limits=(-5, 20),
         y_limits=(-5, 20),
-        threshold=10,
     ):
         self.model = model
         self.colors = colors
@@ -165,7 +186,7 @@ class DynamicClusterer:
 
         # Initialize drift detector
         for x, _ in stream.iter_array(self.data):
-            dist = compute_avg_distance(x, self.microclusters)
+            dist = compute_min_distance(x, self.microclusters)
             self.drift_detector.update(dist)
 
         # Snapshot mechanism to keep trace of the evolution of clustering
@@ -213,7 +234,7 @@ class DynamicClusterer:
         for x, _ in stream.iter_array(self.prod):
             self.timestamp += 1
             self.model.learn_one(x)
-            dist = compute_avg_distance(x, self.microclusters)
+            dist = compute_min_distance(x, self.microclusters)
             self.drift_detector.update(dist)
             if self.drift_detector.drift_detected:
                 print(

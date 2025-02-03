@@ -181,6 +181,7 @@ def get_snapshot_image(snapshot, colors, x_limits=(-5, 20), y_limits=(-5, 20)):
     centers = [d.get_center() for d in snapshot.macroclusters]
     radii = [d.get_radius() for d in snapshot.macroclusters]
 
+
     # labels = [[] for _ in range(snapshot.k)]
 
     fig, ax = plt.subplots()
@@ -407,3 +408,17 @@ def find_closest_cluster(new_cluster, macroclusters):
     else:
         print("List length = 0 ---> Returning 0")
         return 0
+    
+def array_to_dict(arr):
+  """
+  Converts a 1D NumPy array to a dictionary where keys are 
+  integers from 0 to the number of dimensions - 1.
+
+  Args:
+    arr: 1D NumPy array.
+
+  Returns:
+    A dictionary where keys are integers (0 to n-1) 
+    and values are the corresponding elements of the array.
+  """
+  return {i: value for i, value in enumerate(arr)}
