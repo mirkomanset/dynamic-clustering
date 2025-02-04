@@ -422,3 +422,63 @@ def array_to_dict(arr):
     and values are the corresponding elements of the array.
   """
   return {i: value for i, value in enumerate(arr)}
+
+
+
+def get_reduced_snapshot_image(reducer, dimensions, snapshot, colors, ax_limit=10):
+    fig = plt.figure(figsize=(8, 6))  # Adjust figure size as needed
+
+    if dimensions == 2:
+        ax = fig.add_subplot(111) 
+    elif dimensions == 3:
+        ax = fig.add_subplot(111, projection='3d')
+    else:
+        raise ValueError("dimensions must be 2 or 3 for plotting.")
+
+    max_macrocluster_id = 0
+    
+
+    for microcluster in snapshot.get_microclusters():
+        reduced_microcluster = reducer.transform(microcluster.reshape(1, -1))
+        prediction = snapshot.get_model().predict_one(array_to_dict(microcluster))
+        closest_centroid = snapshot.model.macroclusters[prediction]
+        color = "k"
+        for element in snapshot.macroclusters:
+            if element.get_center() == closest_centroid["center"]:
+                color = colors[element.get_id()]
+                max_macrocluster_id = max(max_macrocluster_id, element.get_id())
+                break
+
+        if dimensions == 2:
+            ax.scatter(
+                reduced_microcluster[0][0],
+                reduced_microcluster[0][1],
+                alpha=0.5,
+                color=color,
+            )
+        elif dimensions == 3:
+            ax.scatter(
+                reduced_microcluster[0][0],
+                reduced_microcluster[0][1],
+                reduced_microcluster[0][2], 
+                alpha=0.5,
+                color=color,
+            )
+
+    if dimensions == 2:
+        ax.set_xlim(-ax_limit, ax_limit)
+        ax.set_ylim(-ax_limit, ax_limit)
+    elif dimensions == 3:
+        ax.set_xlim(-ax_limit / 3, ax_limit / 3)
+        ax.set_ylim(-ax_limit / 3, ax_limit / 3)
+        ax.set_zlim(-ax_limit / 3, ax_limit / 3)
+
+    ax.set_title(f"Snapshot at {snapshot.timestamp}")
+
+    scatter_handles = []
+    for i in range(max_macrocluster_id+1):
+        scatter_handles.append(ax.scatter([], [], alpha=0.5, color=colors[i], label=f"Cluster {i}"))
+
+    ax.legend(handles=scatter_handles, title="Clusters")
+
+    return fig

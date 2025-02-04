@@ -4,21 +4,24 @@ import copy
 from random import randint
 import imageio
 import os
-from umap import UMAP
+# from umap import UMAP
 
 from river import stream
 from scripts.utils import (
     extract_integer,
     count_occurrences_in_sublists,
     find_missing_positive,
-    get_snapshot_image,
+    # get_snapshot_image,
     # keep_first_occurrences,
     sublist_present,
     find_closest_cluster,
-    get_colors,
-    array_to_dict
+    # get_colors,
+    # array_to_dict,
+    get_reduced_snapshot_image,
 )
 from scripts.tracker import MEC
+
+from sklearn.decomposition import PCA
 
 
 # Snapshot class to keep the information about the current situation of micro/macro clusters and model
@@ -36,18 +39,19 @@ class Snapshot:
 
     def get_microclusters(self):
         return self.microclusters
-    
+
     def get_macroclusters(self):
         return self.macroclusters
-    
+
     def get_timestamp(self):
         return self.timestamp
-    
+
     def get_model(self):
         return self.model
-    
+
     def get_k(self):
         return self.k
+
 
 def compute_min_distance(x, microclusters):
     """function to compute the minimum distance from a point to any microcluster
@@ -113,7 +117,8 @@ class Macrocluster:
         self.radius = new_radius
 
     def __str__(self):
-        return f"(id: {self.id} - cen: {np.round(self.center,2)} - rad: {np.round(self.radius,2)})"
+        return f"(id: {self.id})"
+        #return f"(id: {self.id} - cen: {np.round(self.center,2)} - rad: {np.round(self.radius,2)})"
 
     def __eq__(self, other):
         """
@@ -160,16 +165,14 @@ class DynamicClusterer:
         model,
         drift_detector,
         colors,
-        x_limits=(-5, 20),
-        y_limits=(-5, 20),
+        ax_limit=10,
     ):
         self.model = model
         self.colors = colors
         self.data = data
         self.timestamp = 0
 
-        self.x_limits = x_limits
-        self.y_limits = y_limits
+        self.ax_limit = ax_limit
 
         self.drift_detector = drift_detector
 
@@ -500,49 +503,37 @@ class DynamicClusterer:
     def get_id(self):
         return self.id
 
-    def visualization(self, dimensions=2):
+    def visualization(self, dimensions=3, show_image=False, save_gif=True):
         print("Drawing ...")
+
         # Collect all microclusters from all snapshots
         all_microclusters = []
         for snapshot in self.snapshots:
             all_microclusters.extend(snapshot.get_microclusters())
-        # Apply umap
-        reducer = UMAP(n_components=dimensions)
+
+        # Apply reducer
+        # reducer = UMAP(n_components=dimensions)
+        reducer = PCA(n_components=dimensions)
         reducer.fit_transform(all_microclusters)
-        colors = get_colors()
 
         for snapshot in self.snapshots:
-            for microcluster in snapshot.get_microclusters():
-                reduced_microcluster = reducer.transform(microcluster.reshape(1, -1))
-                prediction = snapshot.get_model().predict_one(array_to_dict(microcluster))
-                closest_centroid = snapshot.model.macroclusters[prediction]
-                closest_centroid_center = closest_centroid["center"]
-                # closest_centroid_radius = closest_centroid["radius"]
-
-                color = "k"
-                for element in snapshot.macroclusters:
-                    if element.get_center() == closest_centroid_center:
-                        color = colors[element.get_id()]
-                        break
-                plt.scatter(
-                    reduced_microcluster[0][0],
-                    reduced_microcluster[0][1],
-                    alpha=0.5,
-                    color=color,
-                )
-            #plt.legend()
-            plt.title(f"Snapshot at {snapshot.timestamp}")
-            # plt.axis('equal')
-            plt.xlim((-50,50))
-            plt.ylim((-50,50))
-            plt.figure(figsize=(10, 10))
-            plt.show()
+            fig = get_reduced_snapshot_image(
+                reducer=reducer,
+                dimensions=dimensions,
+                snapshot=snapshot,
+                colors=self.colors,
+                ax_limit=self.ax_limit,
+            )
+            fig.savefig(f"{self.directory}/temp_image_{len(self.plots)}.png")
+            self.plots.append(f"{self.directory}/temp_image_{len(self.plots)}.png")
+            if show_image:
+                plt.show()
             plt.close("all")
 
-        return
-
-
-            
-
-
-
+        if save_gif:
+            with imageio.get_writer(
+                f"plots/{self.id}/animation_{self.id}.gif", mode="I", duration=1000
+            ) as writer:
+                for filename in self.plots:
+                    image = imageio.v2.imread(filename)
+                    writer.append_data(image)
