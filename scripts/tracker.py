@@ -16,8 +16,7 @@ def MEC(
     print_results=False,
     print_graph=False,
 ):
-    
-    """ MEC algorithm for tracking macroclusters in two different timestamps"""
+    """MEC algorithm for tracking macroclusters in two different timestamps"""
     n_clusters_ref = len(clusters_ref)
     n_clusters_prod = len(clusters_prod)
 

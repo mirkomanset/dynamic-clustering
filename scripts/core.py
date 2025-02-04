@@ -2,7 +2,6 @@ from scripts.clusterer import CluStreamMicroCluster
 from river import base
 
 
-
 class Macrocluster:
     """Macrocluster class to represent macroclusters"""
 
@@ -65,12 +64,19 @@ class Macrocluster:
 
         # Return the hash of a tuple containing center and radius
         return hash((center_tuple, radius_tuple))
-    
+
 
 class Snapshot:
     """Snapshot class to keep the information about the current situation of micro/macro clusters and model"" """
 
-    def __init__(self, microclusters: list[CluStreamMicroCluster], macroclusters: list[Macrocluster], model: base.Clusterer, k: int, timestamp: int):
+    def __init__(
+        self,
+        microclusters: list[CluStreamMicroCluster],
+        macroclusters: list[Macrocluster],
+        model: base.Clusterer,
+        k: int,
+        timestamp: int,
+    ):
         self.microclusters = microclusters
         self.macroclusters = macroclusters
         self.timestamp = timestamp

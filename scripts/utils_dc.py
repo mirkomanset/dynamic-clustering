@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scripts.utils import array_to_dict
 
+
 def compute_min_distance(x, microclusters):
     """function to compute the minimum distance from a point to any microcluster
 
@@ -19,6 +20,7 @@ def compute_min_distance(x, microclusters):
         point = list(x.values())
         temp_list.append(np.linalg.norm(np.array(point) - np.array(mc)))
     return min(temp_list)
+
 
 def compute_radius(points, centroid):
     """Custom function to compute the radius of cluster obtained using kmeans.
@@ -57,6 +59,7 @@ def overlapping_score(cluster1, cluster2, overlapping_factor=1):
     dist = np.linalg.norm(np.array(center1) - np.array(center2))
     return 2 ** (-(dist / (overlapping_factor * (radius1 + radius2))))
 
+
 def find_closest_cluster(new_cluster, macroclusters):
     """
     Finds the closest cluster to a given centroid.
@@ -78,7 +81,8 @@ def find_closest_cluster(new_cluster, macroclusters):
         return macroclusters[np.argmin(distances)]
     else:
         print("List length = 0 ---> Returning 0")
-        return 
+        return
+
 
 def internal_transition(m1, m2):
     """Given two macroclusters (ideally the same one that survived ie m1 survived as m2) it returns the internal transitions
@@ -100,7 +104,8 @@ def internal_transition(m1, m2):
     radius_ratio = r1 / r2
 
     return dist, radius_ratio
-    
+
+
 def get_snapshot_image(snapshot, colors, x_limits=(-5, 20), y_limits=(-5, 20)):
     """Function to get the fig of clustered image.
 
@@ -115,7 +120,6 @@ def get_snapshot_image(snapshot, colors, x_limits=(-5, 20), y_limits=(-5, 20)):
     """
     centers = [d.get_center() for d in snapshot.macroclusters]
     radii = [d.get_radius() for d in snapshot.macroclusters]
-
 
     # labels = [[] for _ in range(snapshot.k)]
 
@@ -224,6 +228,7 @@ def get_reduced_snapshot_image(reducer, dimensions, snapshot, colors, ax_limit=1
     ax.legend(handles=scatter_handles, title="Clusters")
 
     return fig
+
 
 def anim_data(data, title=""):
     """Build an animation .mp4 given a dataset.

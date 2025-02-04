@@ -30,8 +30,8 @@ from sklearn.decomposition import PCA
 
 # Main Class that wrapped the model, data and clustering
 class DynamicClusterer:
-    """Main Class that wrapped the model, data and clustering""
-    """
+    """Main Class that wrapped the model, data and clustering"" """
+
     # Initialization: it receives the reference data and the model and initializes the instance
     def __init__(
         self,
@@ -115,8 +115,7 @@ class DynamicClusterer:
 
     # Print macrocluster informations
     def print_macro_clusters(self) -> None:
-        """Print macrocluster informations""
-        """
+        """Print macrocluster informations"" """
         for element in self.macroclusters:
             print(element)
 
