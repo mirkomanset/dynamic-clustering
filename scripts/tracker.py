@@ -2,18 +2,22 @@ import numpy as np
 import matplotlib.pyplot as plt
 import networkx as nx
 
+from scripts.core import MacroCluster
+
 # MEC algorithm for tracking
 # Based on overlapping and bipartite graph
 
 
 def MEC(
-    clusters_ref,
-    clusters_prod,
+    clusters_ref: list[MacroCluster],
+    clusters_prod: list[MacroCluster],
+    overlapping_factor: float = 1,
     print_statistics=False,
     print_results=False,
     print_graph=False,
-    overlapping_factor=1,
 ):
+    
+    """ MEC algorithm for tracking macroclusters in two different timestamps"""
     n_clusters_ref = len(clusters_ref)
     n_clusters_prod = len(clusters_prod)
 

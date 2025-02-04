@@ -4,182 +4,65 @@ import copy
 from random import randint
 import imageio
 import os
-# from umap import UMAP
 
-from river import stream
+
+from river import stream, base
+from scripts.core import Snapshot, Macrocluster
+from scripts.clusterer import CluStreamMicroCluster
+from scripts.utils_dc import (
+    compute_min_distance,
+    overlapping_score,
+    find_closest_cluster,
+    get_reduced_snapshot_image,
+)
+
 from scripts.utils import (
     extract_integer,
     count_occurrences_in_sublists,
     find_missing_positive,
-    # get_snapshot_image,
-    # keep_first_occurrences,
     sublist_present,
-    find_closest_cluster,
-    # get_colors,
-    # array_to_dict,
-    get_reduced_snapshot_image,
 )
 from scripts.tracker import MEC
 
 from sklearn.decomposition import PCA
-
-
-# Snapshot class to keep the information about the current situation of micro/macro clusters and model
-
-
-class Snapshot:
-    """Snapshot class to keep the information about the current situation of micro/macro clusters and model"" """
-
-    def __init__(self, microclusters, macroclusters, model, k, timestamp):
-        self.microclusters = microclusters
-        self.macroclusters = macroclusters
-        self.timestamp = timestamp
-        self.model = model
-        self.k = k
-
-    def get_microclusters(self):
-        return self.microclusters
-
-    def get_macroclusters(self):
-        return self.macroclusters
-
-    def get_timestamp(self):
-        return self.timestamp
-
-    def get_model(self):
-        return self.model
-
-    def get_k(self):
-        return self.k
-
-
-def compute_min_distance(x, microclusters):
-    """function to compute the minimum distance from a point to any microcluster
-
-    Args:
-        x (np.array): point to be evaluated
-        microclusters (list[ClustreamMicrocluster]): list of microclusters
-
-    Returns:
-        float: minimum distance to any microcluster
-    """
-    temp_list = []
-    for mc in microclusters:
-        point = list(x.values())
-        temp_list.append(np.linalg.norm(np.array(point) - np.array(mc)))
-    return min(temp_list)
-
-
-def overlapping_score(cluster1, cluster2, overlapping_factor=1):
-    """Function to compute the overlapping score between two clusters.
-
-    Args:
-        cluster1 (Macrocluster): first cluster
-        cluster2 (Macrocluster): second cluster
-        overlapping_factor (int, optional): parameter to be defined. Defaults to 1.
-
-    Returns:
-        float: overlapping score between the two clusters
-    """
-    center1 = cluster1.get_center()
-    center2 = cluster2.get_center()
-    radius1 = cluster1.get_radius()
-    radius2 = cluster2.get_radius()
-
-    dist = np.linalg.norm(np.array(center1) - np.array(center2))
-    return 2 ** (-(dist / (overlapping_factor * (radius1 + radius2))))
-
-
-class Macrocluster:
-    """Macrocluster class to represent macroclusters"""
-
-    def __init__(self, id=0, center=0, radius=0):
-        self.id = id
-        self.center = center
-        self.radius = radius
-
-    def get_id(self):
-        return self.id
-
-    def get_center(self):
-        return self.center
-
-    def get_radius(self):
-        return self.radius
-
-    def update_id(self, new_id):
-        self.id = new_id
-
-    def update_center(self, new_center):
-        self.center = new_center
-
-    def update_radius(self, new_radius):
-        self.radius = new_radius
-
-    def __str__(self):
-        return f"(id: {self.id})"
-        #return f"(id: {self.id} - cen: {np.round(self.center,2)} - rad: {np.round(self.radius,2)})"
-
-    def __eq__(self, other):
-        """
-        Defines the behavior of the '==' operator for Macrocluster objects.
-
-        Args:
-          other: The other object to compare with.
-
-        Returns:
-          True if the 'value' attribute of both objects is equal, False otherwise.
-        """
-        if not isinstance(other, Macrocluster):
-            return NotImplemented  # Indicate that comparison is not supported
-        return (self.center == other.center) and (self.radius == other.radius)
-
-    def __hash__(self):
-        """
-        Defines the hash value for the object.
-
-        Returns:
-          A hash value based on the 'center' and 'radius' attributes.
-          If 'center' or 'radius' are lists, they are converted to tuples for hashing.
-        """
-        # Convert center and radius to tuples if they are lists
-        center_tuple = (
-            tuple(self.center) if isinstance(self.center, list) else self.center
-        )
-        radius_tuple = (
-            tuple(self.radius) if isinstance(self.radius, list) else self.radius
-        )
-
-        # Return the hash of a tuple containing center and radius
-        return hash((center_tuple, radius_tuple))
+# from umap import UMAP
 
 
 # Main Class that wrapped the model, data and clustering
-
-
 class DynamicClusterer:
+    """Main Class that wrapped the model, data and clustering""
+    """
     # Initialization: it receives the reference data and the model and initializes the instance
     def __init__(
         self,
-        data,
-        model,
-        drift_detector,
-        colors,
-        ax_limit=10,
+        data: np.ndarray,
+        model: base.Clusterer,
+        drift_detector: base.DriftDetector,
+        colors: list[str],
+        ax_limit: int = 10,
     ):
-        self.model = model
-        self.colors = colors
-        self.data = data
-        self.timestamp = 0
+        """Initilize the DynamicClusterer.
 
-        self.ax_limit = ax_limit
+        Args:
+            data (np.ndarray): reference data
+            model (base.Clusterer): model to use for streaming clustering
+            drift_detector (base.DriftDetector): internal drift detector
+            colors (list[str]): list of colors for visualization
+            ax_limit (int, optional): axis limits for plots. Defaults to 10.
+        """
+        self.model: base.Clusterer = model
+        self.colors: list[str] = colors
+        self.data: np.ndarray = data
+        self.timestamp: int = 0
 
-        self.drift_detector = drift_detector
+        self.ax_limit: int = ax_limit
 
-        self.id = randint(10000, 99999)
+        self.drift_detector: base.DriftDetector = drift_detector
+
+        self.id: int = randint(10000, 99999)
         print(f"New model created - id: {self.id}")
 
-        self.directory = f"./plots/{self.id}"
+        self.directory: str = f"./plots/{self.id}"
         os.makedirs(self.directory, exist_ok=True)
 
         # Fit model into reference data
@@ -190,10 +73,10 @@ class DynamicClusterer:
         self.model.apply_macroclustering()
 
         # Number of macroclusters
-        self.k = self.model.best_k
+        self.k: int = self.model.best_k
 
         # Save a list of macroclusters
-        self.macroclusters = []
+        self.macroclusters: list[Macrocluster] = []
 
         for i in range(len(self.model.macroclusters)):
             m = self.model.macroclusters[i]
@@ -203,7 +86,7 @@ class DynamicClusterer:
             self.macroclusters.append(new_macrocluster)
 
         # Set of microclusters
-        self.microclusters = self.model.get_microclusters()
+        self.microclusters: list[CluStreamMicroCluster] = self.model.get_microclusters()
 
         # Initialize drift detector
         for x, _ in stream.iter_array(self.data):
@@ -211,7 +94,7 @@ class DynamicClusterer:
             self.drift_detector.update(dist)
 
         # Snapshot mechanism to keep trace of the evolution of clustering
-        self.snapshots = []
+        self.snapshots: list[Snapshot] = []
         snapshot = Snapshot(
             copy.deepcopy(self.microclusters),
             copy.deepcopy(self.macroclusters),
@@ -225,32 +108,43 @@ class DynamicClusterer:
         self.prod = []
 
         # Saved plots
-        self.plots = []
+        self.plots: list[str] = []
 
         # Print the reference clustering
         self.print_macro_clusters()
 
-        # Plot reference clustering
-        # self.plot_clustered_data(plot_img=True)
-
     # Print macrocluster informations
-    def print_macro_clusters(self):
+    def print_macro_clusters(self) -> None:
+        """Print macrocluster informations""
+        """
         for element in self.macroclusters:
             print(element)
 
     # Update prod data
-    def receive_prod(self, data):
+    def receive_prod(self, data: np.ndarray) -> None:
+        """Save the new data into the prod attribute.
+
+        Args:
+            data (np.ndarray): new data to be added to the prod attribute
+        """
         self.prod = data
 
     # Fit prod data
     def fit_prod_data(
         self,
-        print_statistics=False,
-        print_results=False,
-        print_graph=False,
-        plot_img=True,
-        macroclustering_at_end=True,
-    ):
+        print_statistics: bool = False,
+        print_results: bool = False,
+        print_graph: bool = False,
+        macroclustering_at_end: bool = True,
+    ) -> None:
+        """After receiving new data, update the model, apply macroclustering and update the microclusters and macroclusters.
+
+        Args:
+            print_statistics (bool, optional): bool to decide to print statistics of tracking. Defaults to False.
+            print_results (bool, optional): bool to decide to print results of tracking. Defaults to False.
+            print_graph (bool, optional): bool to decide to print graph of tracking. Defaults to False.
+            macroclustering_at_end (bool, optional): bool to decide to trigger macroclustering algorithm at the end of the batch. Defaults to True.
+        """
         # Fit the new data: online phase
         for x, _ in stream.iter_array(self.prod):
             self.timestamp += 1
@@ -261,31 +155,29 @@ class DynamicClusterer:
                 print(
                     f"<!> Change detected! Possible input drift at timestamp {self.timestamp} ----> Apply macroclustering <!>"
                 )
-                self.trigger_macroclustering(
+                self._trigger_macroclustering(
                     print_statistics=print_statistics,
                     print_results=print_results,
                     print_graph=print_graph,
-                    plot_img=plot_img,
                 )
 
         # Apply macroclustering at the end of the batch
         # Note that we do not save the the new macroclustering now
         if macroclustering_at_end:
             print("Batch Finished ----> Apply macroclustering")
-            self.trigger_macroclustering(
+            self._trigger_macroclustering(
                 print_statistics=print_statistics,
                 print_results=print_results,
                 print_graph=print_graph,
-                plot_img=plot_img,
             )
 
-    def trigger_macroclustering(
+    def _trigger_macroclustering(
         self,
-        print_statistics=True,
-        print_results=False,
-        print_graph=False,
-        plot_img=True,
-    ):
+        print_statistics: bool = True,
+        print_results: bool = False,
+        print_graph: bool = False,
+    ) -> None:
+        """Trigger macroclustering and Tracking algorithms."""
         self.model.apply_macroclustering()
 
         # Update microclusters and new number of macrocluster
@@ -491,19 +383,39 @@ class DynamicClusterer:
 
     # Get model
     # Useful to call tracking externally
-    def get_model(self):
+    def get_model(self) -> base.Clusterer:
+        """Function to retrieve the current model
+
+        Returns:
+            base.Clusterer: current model
+        """
         return self.model
 
     # Clean plots if they are no more needed
-    def clean_plots(self):
+    def clean_plots(self) -> None:
+        """Function to remove all plots generated during the simulation"""
         for filename in self.plots:
             os.remove(filename)
         self.plots = []
 
-    def get_id(self):
+    def get_id(self) -> int:
+        """Function to retrieve the unique identifier of the simulation
+
+        Returns:
+            int: dynamic cluster id
+        """
         return self.id
 
-    def visualization(self, dimensions=3, show_image=False, save_gif=True):
+    def visualization(
+        self, dimensions: int = 3, show_image: bool = False, save_gif: bool = True
+    ) -> None:
+        """Function to visualize the dynamic cluster simulation
+
+        Args:
+            dimensions (int, optional): dimensions of the plot (must be set to 2 or 3). Defaults to 3.
+            show_image (bool, optional): bool to decide to show each snapshot. Defaults to False.
+            save_gif (bool, optional): bool to decide to save the animation as a gif. Defaults to True.
+        """
         print("Drawing ...")
 
         # Collect all microclusters from all snapshots

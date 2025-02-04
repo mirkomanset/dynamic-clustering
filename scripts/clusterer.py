@@ -7,7 +7,7 @@ from sklearn.cluster import KMeans
 
 from river import base, stats, utils
 
-from scripts.utils import compute_radius
+from scripts.utils_dc import compute_radius
 
 
 class CluStream(base.Clusterer):

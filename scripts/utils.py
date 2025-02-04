@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.animation as animation
+
 import re
 import os
 
@@ -64,24 +64,6 @@ def extract_integer(s):
         return None
 
 
-def compute_radius(points, centroid):
-    """Custom function to compute the radius of cluster obtained using kmeans.
-    It simply return the average distance betweena all points and the centroid.
-
-    Args:
-        points (np.array): points in the cluster
-        centroid (np.array): centroid of the cluster
-
-    Returns:
-        float: radius of the cluster
-    """
-    if points.size == 0:  # Check if points array is empty
-        return 0  # Return 0 as radius for empty cluster
-    distances = np.linalg.norm(points - centroid, axis=1)
-    radius = np.average(distances)
-    return radius
-
-
 def find_missing_positive(nums):
     """Function to find the first missing positive number.
     It is used to assign the smaller ID to new appearring cluster.
@@ -141,94 +123,45 @@ def keep_first_occurrences(clusters):
     return result
 
 
-def internal_transition(m1, m2):
-    """Given two macroclusters (ideally the same one that survived ie m1 survived as m2) it returns the internal transitions
-    namely the distance between the centers and ratio between radii
+def get_data(means, std_devs, n_samples):
+    """Function to generate data from multiple Gaussian distributions.
 
     Args:
-        m1 (Macrocluster): first macrocluster
-        m2 (Macrocluster): second macrocluster
+        means (list[float]): list of the means of the gaussians
+        std_devs (list[float]): list of the standard deviations of the gaussians
+        n_samples (int): number of samples to generate for each distribution
 
     Returns:
-        float, float: distance between centers and ratio between radii
+        np.array: pointed dataset with n_samples points from each Gaussian distribution
     """
-    c1 = m1.get_center()
-    c2 = m2.get_center()
-    r1 = m1.get_radius()
-    r2 = m2.get_radius()
-
-    dist = np.linalg.norm(np.array(c1) - np.array(c2))
-    radius_ratio = r1 / r2
-
-    return dist, radius_ratio
-
-
-#
+    data = []
+    covs = [np.diag(std_dev**2) for std_dev in std_devs]
+    # Derive n_samples for each distribution
+    for mean, cov in zip(means, covs):
+        data.append(np.random.multivariate_normal(mean, cov, n_samples))
+    data = np.array(data)
+    data = data.reshape(data.shape[0] * data.shape[1], data.shape[2])
+    np.random.shuffle(data)
+    return data
 
 
-def get_snapshot_image(snapshot, colors, x_limits=(-5, 20), y_limits=(-5, 20)):
-    """Function to get the fig of clustered image.
+def plot_data(data):
+    """Function to plot the data.
 
     Args:
-        snapshot (Snaphot): snapshot object
-        colors (list[str]): list
-        x_limits (tuple, optional): x-axis limits. Defaults to (-5, 20).
-        y_limits (tuple, optional): y-axis limits. Defaults to (-5, 20).
-
-    Returns:
-        fig: figure object built with matplotlib.pyplot
+        data (np.array): data to be plotted, shape (n_samples, 2)
     """
-    centers = [d.get_center() for d in snapshot.macroclusters]
-    radii = [d.get_radius() for d in snapshot.macroclusters]
+    # Assuming your data has two features
+    x = data[:, 0]
+    y = data[:, 1]
 
+    plt.scatter(x, y, alpha=0.1)
 
-    # labels = [[] for _ in range(snapshot.k)]
-
-    fig, ax = plt.subplots()
-    for i in range(snapshot.microclusters.shape[0]):
-        prediction = snapshot.model.predict_one(
-            {0: snapshot.microclusters[i, 0], 1: snapshot.microclusters[i, 1]}
-        )
-
-        closest_centroid = snapshot.model.macroclusters[prediction]
-        closest_centroid_center = closest_centroid["center"]
-        # closest_centroid_radius = closest_centroid["radius"]
-
-        color = "k"
-
-        for element in snapshot.macroclusters:
-            if element.get_center() == closest_centroid_center:
-                color = colors[element.get_id()]
-                break
-        plt.scatter(
-            snapshot.microclusters[i, 0],
-            snapshot.microclusters[i, 1],
-            alpha=0.5,
-            color=color,
-        )
-
-    plt.scatter(
-        np.array(centers)[:, 0],
-        np.array(centers)[:, 1],
-        alpha=1,
-        color="k",
-        label="centers",
-    )
-    for i in range(len(centers)):
-        center = centers[i]
-        radius = radii[i]
-        circle = plt.Circle(center, radius, color="black", fill=False)
-        plt.scatter(center[0], center[1], alpha=1, color="black")
-        ax.add_patch(circle)
-
-    plt.legend()
-    plt.title(f"Snapshot at {snapshot.timestamp}")
-    # plt.axis('equal')
-    plt.xlim(x_limits)
-    plt.ylim(y_limits)
+    plt.axis("equal")
+    plt.xlim(-50, 50)
+    plt.ylim(-50, 50)
     plt.figure(figsize=(10, 10))
-
-    return fig
+    plt.show()
 
 
 def circular_trajectory(
@@ -276,77 +209,6 @@ def linear_trajectory(start_point, end_point, num_points):
     return list(zip(x, y))
 
 
-def plot_data(data):
-    """Function to plot the data.
-
-    Args:
-        data (np.array): data to be plotted, shape (n_samples, 2)
-    """
-    # Assuming your data has two features
-    x = data[:, 0]
-    y = data[:, 1]
-
-    plt.scatter(x, y, alpha=0.1)
-
-    plt.axis("equal")
-    plt.xlim(-50, 50)
-    plt.ylim(-50, 50)
-    plt.figure(figsize=(10, 10))
-    plt.show()
-
-
-def get_data(means, std_devs, n_samples):
-    """Function to generate data from multiple Gaussian distributions.
-
-    Args:
-        means (list[float]): list of the means of the gaussians
-        std_devs (list[float]): list of the standard deviations of the gaussians
-        n_samples (int): number of samples to generate for each distribution
-
-    Returns:
-        np.array: pointed dataset with n_samples points from each Gaussian distribution
-    """
-    data = []
-    covs = [np.diag(std_dev**2) for std_dev in std_devs]
-    # Derive n_samples for each distribution
-    for mean, cov in zip(means, covs):
-        data.append(np.random.multivariate_normal(mean, cov, n_samples))
-    data = np.array(data)
-    data = data.reshape(data.shape[0] * data.shape[1], data.shape[2])
-    np.random.shuffle(data)
-    return data
-
-
-def anim_data(data, title=""):
-    """Build an animation .mp4 given a dataset.
-    It adds one point at every frame to see how data arrive.
-
-    Args:
-        data (np.array): 2d data to animate.
-        title (str, optional): title to give to the animated file. Defaults to "".
-    """
-    # Assuming your data has two features
-    x = data[:, 0]
-    y = data[:, 1]
-
-    # Create a figure and axis
-    fig, ax = plt.subplots()
-    ax.set_xlim(-50, 50)
-    ax.set_ylim(-50, 50)
-    ax.axis("equal")
-
-    # Initialize an empty scatter plot
-    scatter = ax.scatter([], [], s=10)
-
-    def update_plot(i):
-        scatter.set_offsets(np.vstack((scatter.get_offsets().data, [[x[i], y[i]]])))
-
-    # Create the animation
-    ani = animation.FuncAnimation(fig, update_plot, frames=len(x), interval=10)
-    ani.save(f"{title}_animation.mp4")
-    print("Animation saved!")
-
-
 def clean_directory(directory_path):
     """
     Clean directory by removing all its elements and the directory itself
@@ -386,99 +248,16 @@ def sublist_present(sublist, list_of_sublists):
     return False
 
 
-def find_closest_cluster(new_cluster, macroclusters):
+def array_to_dict(arr):
     """
-    Finds the closest cluster to a given centroid.
+    Converts a 1D NumPy array to a dictionary where keys are
+    integers from 0 to the number of dimensions - 1.
 
     Args:
-      centroid: The centroid to find the closest cluster to.
-      macroclusters: A list of macroclusters.
+      arr: 1D NumPy array.
 
     Returns:
-      The the closest cluster in the list of macroclusters.
+      A dictionary where keys are integers (0 to n-1)
+      and values are the corresponding elements of the array.
     """
-    if len(macroclusters) != 0:
-        distances = [
-            np.linalg.norm(
-                np.array(new_cluster.get_center()) - np.array(cluster.get_center())
-            )
-            for cluster in macroclusters
-        ]
-        return macroclusters[np.argmin(distances)]
-    else:
-        print("List length = 0 ---> Returning 0")
-        return 0
-    
-def array_to_dict(arr):
-  """
-  Converts a 1D NumPy array to a dictionary where keys are 
-  integers from 0 to the number of dimensions - 1.
-
-  Args:
-    arr: 1D NumPy array.
-
-  Returns:
-    A dictionary where keys are integers (0 to n-1) 
-    and values are the corresponding elements of the array.
-  """
-  return {i: value for i, value in enumerate(arr)}
-
-
-
-def get_reduced_snapshot_image(reducer, dimensions, snapshot, colors, ax_limit=10):
-    fig = plt.figure(figsize=(8, 6))  # Adjust figure size as needed
-
-    if dimensions == 2:
-        ax = fig.add_subplot(111) 
-    elif dimensions == 3:
-        ax = fig.add_subplot(111, projection='3d')
-    else:
-        raise ValueError("dimensions must be 2 or 3 for plotting.")
-
-    max_macrocluster_id = 0
-    
-
-    for microcluster in snapshot.get_microclusters():
-        reduced_microcluster = reducer.transform(microcluster.reshape(1, -1))
-        prediction = snapshot.get_model().predict_one(array_to_dict(microcluster))
-        closest_centroid = snapshot.model.macroclusters[prediction]
-        color = "k"
-        for element in snapshot.macroclusters:
-            if element.get_center() == closest_centroid["center"]:
-                color = colors[element.get_id()]
-                max_macrocluster_id = max(max_macrocluster_id, element.get_id())
-                break
-
-        if dimensions == 2:
-            ax.scatter(
-                reduced_microcluster[0][0],
-                reduced_microcluster[0][1],
-                alpha=0.5,
-                color=color,
-            )
-        elif dimensions == 3:
-            ax.scatter(
-                reduced_microcluster[0][0],
-                reduced_microcluster[0][1],
-                reduced_microcluster[0][2], 
-                alpha=0.5,
-                color=color,
-            )
-
-    if dimensions == 2:
-        ax.set_xlim(-ax_limit, ax_limit)
-        ax.set_ylim(-ax_limit, ax_limit)
-    elif dimensions == 3:
-        ax.set_xlim(-ax_limit / 3, ax_limit / 3)
-        ax.set_ylim(-ax_limit / 3, ax_limit / 3)
-        ax.set_zlim(-ax_limit / 3, ax_limit / 3)
-
-    ax.set_title(f"Snapshot at {snapshot.timestamp}")
-
-    scatter_handles = []
-    for i in range(max_macrocluster_id+1):
-        scatter_handles.append(ax.scatter([], [], alpha=0.5, color=colors[i], label=f"Cluster {i}"))
-
-    ax.legend(handles=scatter_handles, title="Clusters")
-
-    return fig
+    return {i: value for i, value in enumerate(arr)}

@@ -8,3 +8,4 @@ river
 ucimlrepo
 umap-learn
 plotly
+seaborn
