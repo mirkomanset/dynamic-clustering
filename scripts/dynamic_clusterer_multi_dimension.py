@@ -21,6 +21,7 @@ from scripts.utils import (
     count_occurrences_in_sublists,
     find_missing_positive,
     sublist_present,
+    clean_directory
 )
 from scripts.tracker import MEC
 
@@ -61,9 +62,6 @@ class DynamicClusterer:
 
         self.id: int = randint(10000, 99999)
         print(f"New model created - id: {self.id}")
-
-        self.directory: str = f"./plots/{self.id}"
-        os.makedirs(self.directory, exist_ok=True)
 
         # Fit model into reference data
         for x, _ in stream.iter_array(self.data):
@@ -360,6 +358,7 @@ class DynamicClusterer:
         # Remove duplicates to handle merging clusters
         # self.macroclusters = keep_first_occurrences(self.macroclusters)
 
+        print()
         print("Final macroclusters:")
         for cluster in self.macroclusters:
             print(cluster)
@@ -406,7 +405,7 @@ class DynamicClusterer:
         return self.id
 
     def visualization(
-        self, dimensions: int = 3, show_image: bool = False, save_gif: bool = True
+        self, dimensions: int = 3, show_image: bool = False, save_gif: bool = True, clean: bool = False
     ) -> None:
         """Function to visualize the dynamic cluster simulation
 
@@ -415,6 +414,11 @@ class DynamicClusterer:
             show_image (bool, optional): bool to decide to show each snapshot. Defaults to False.
             save_gif (bool, optional): bool to decide to save the animation as a gif. Defaults to True.
         """
+        print("Creating the directory...")
+
+        self.directory: str = f"./plots/{self.id}"
+        os.makedirs(self.directory, exist_ok=True)
+
         print("Drawing ...")
 
         # Collect all microclusters from all snapshots
@@ -427,7 +431,7 @@ class DynamicClusterer:
         reducer = PCA(n_components=dimensions)
         reducer.fit_transform(all_microclusters)
 
-        for snapshot in self.snapshots:
+        for i, snapshot in enumerate(self.snapshots):
             fig = get_reduced_snapshot_image(
                 reducer=reducer,
                 dimensions=dimensions,
@@ -435,8 +439,8 @@ class DynamicClusterer:
                 colors=self.colors,
                 ax_limit=self.ax_limit,
             )
-            fig.savefig(f"{self.directory}/temp_image_{len(self.plots)}.png")
-            self.plots.append(f"{self.directory}/temp_image_{len(self.plots)}.png")
+            fig.savefig(f"{self.directory}/temp_image_{i}.png")
+            self.plots.append(f"{self.directory}/temp_image_{i}.png")
             if show_image:
                 plt.show()
             plt.close("all")
@@ -448,3 +452,6 @@ class DynamicClusterer:
                 for filename in self.plots:
                     image = imageio.v2.imread(filename)
                     writer.append_data(image)
+
+        if clean:
+            clean_directory(self.directory)

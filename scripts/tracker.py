@@ -2,15 +2,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 import networkx as nx
 
-from scripts.core import MacroCluster
+from scripts.core import Macrocluster
 
 # MEC algorithm for tracking
 # Based on overlapping and bipartite graph
 
 
 def MEC(
-    clusters_ref: list[MacroCluster],
-    clusters_prod: list[MacroCluster],
+    clusters_ref: list[Macrocluster],
+    clusters_prod: list[Macrocluster],
     overlapping_factor: float = 1,
     print_statistics=False,
     print_results=False,
