@@ -1,8 +1,9 @@
 # Snapshot class to keep the information about the current situation of micro/macro clusters and model
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.animation as animation
 from scripts.utils import array_to_dict
+from scripts.core import Macrocluster, Snapshot
+from sklearn.base import BaseEstimator
 
 
 def compute_min_distance(x, microclusters):
@@ -40,7 +41,9 @@ def compute_radius(points, centroid):
     return radius
 
 
-def overlapping_score(cluster1, cluster2, overlapping_factor=1):
+def overlapping_score(
+    cluster1: Macrocluster, cluster2: Macrocluster, overlapping_factor: float = 1
+) -> float:
     """Function to compute the overlapping score between two clusters.
 
     Args:
@@ -60,7 +63,9 @@ def overlapping_score(cluster1, cluster2, overlapping_factor=1):
     return 2 ** (-(dist / (overlapping_factor * (radius1 + radius2))))
 
 
-def find_closest_cluster(new_cluster, macroclusters):
+def find_closest_cluster(
+    new_cluster: Macrocluster, macroclusters: list[Macrocluster]
+) -> Macrocluster | None:
     """
     Finds the closest cluster to a given centroid.
 
@@ -84,7 +89,7 @@ def find_closest_cluster(new_cluster, macroclusters):
         return
 
 
-def internal_transition(m1, m2):
+def internal_transition(m1: Macrocluster, m2: Macrocluster):
     """Given two macroclusters (ideally the same one that survived ie m1 survived as m2) it returns the internal transitions
     namely the distance between the centers and ratio between radii
 
@@ -106,7 +111,12 @@ def internal_transition(m1, m2):
     return dist, radius_ratio
 
 
-def get_snapshot_image(snapshot, colors, x_limits=(-5, 20), y_limits=(-5, 20)):
+def get_snapshot_image(
+    snapshot: Snapshot,
+    colors: list[str],
+    x_limits: tuple[float, float] = (-5, 20),
+    y_limits: tuple[float, float] = (-5, 20),
+) -> plt.Figure:
     """Function to get the fig of clustered image.
 
     Args:
@@ -170,7 +180,13 @@ def get_snapshot_image(snapshot, colors, x_limits=(-5, 20), y_limits=(-5, 20)):
     return fig
 
 
-def get_reduced_snapshot_image(reducer, dimensions, snapshot, colors, ax_limit=10):
+def get_reduced_snapshot_image(
+    reducer: BaseEstimator,
+    dimensions: int,
+    snapshot: Snapshot,
+    colors: list[str],
+    ax_limit: float = 10,
+) -> plt.Figure:
     fig = plt.figure(figsize=(8, 6))  # Adjust figure size as needed
 
     if dimensions == 2:
@@ -228,33 +244,3 @@ def get_reduced_snapshot_image(reducer, dimensions, snapshot, colors, ax_limit=1
     ax.legend(handles=scatter_handles, title="Clusters")
 
     return fig
-
-
-def anim_data(data, title=""):
-    """Build an animation .mp4 given a dataset.
-    It adds one point at every frame to see how data arrive.
-
-    Args:
-        data (np.array): 2d data to animate.
-        title (str, optional): title to give to the animated file. Defaults to "".
-    """
-    # Assuming your data has two features
-    x = data[:, 0]
-    y = data[:, 1]
-
-    # Create a figure and axis
-    fig, ax = plt.subplots()
-    ax.set_xlim(-50, 50)
-    ax.set_ylim(-50, 50)
-    ax.axis("equal")
-
-    # Initialize an empty scatter plot
-    scatter = ax.scatter([], [], s=10)
-
-    def update_plot(i):
-        scatter.set_offsets(np.vstack((scatter.get_offsets().data, [[x[i], y[i]]])))
-
-    # Create the animation
-    ani = animation.FuncAnimation(fig, update_plot, frames=len(x), interval=10)
-    ani.save(f"{title}_animation.mp4")
-    print("Animation saved!")

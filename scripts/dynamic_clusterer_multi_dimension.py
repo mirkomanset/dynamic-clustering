@@ -8,7 +8,7 @@ import os
 
 from river import stream, base
 from scripts.core import Snapshot, Macrocluster
-from scripts.clusterer import CluStreamMicroCluster
+from scripts.streaming_clusterer import CluStreamMicroCluster
 from scripts.utils_dc import (
     compute_min_distance,
     overlapping_score,
@@ -21,7 +21,7 @@ from scripts.utils import (
     count_occurrences_in_sublists,
     find_missing_positive,
     sublist_present,
-    clean_directory
+    clean_directory,
 )
 from scripts.tracker import MEC
 
@@ -405,7 +405,11 @@ class DynamicClusterer:
         return self.id
 
     def visualization(
-        self, dimensions: int = 3, show_image: bool = False, save_gif: bool = True, clean: bool = False
+        self,
+        dimensions: int = 3,
+        show_image: bool = False,
+        save_gif: bool = True,
+        clean: bool = False,
     ) -> None:
         """Function to visualize the dynamic cluster simulation
 

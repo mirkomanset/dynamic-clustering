@@ -15,7 +15,7 @@ def MEC(
     print_statistics=False,
     print_results=False,
     print_graph=False,
-):
+) -> nx.Graph:
     """MEC algorithm for tracking macroclusters in two different timestamps"""
     n_clusters_ref = len(clusters_ref)
     n_clusters_prod = len(clusters_prod)
@@ -64,8 +64,12 @@ def MEC(
                 print()
 
             if (
-                dist < overlapping_factor * (cref_radius + cprod_radius)
-            ):  ########################## change this to adjust the overlapping criteria
+                dist
+                < overlapping_factor
+                * (
+                    cref_radius + cprod_radius
+                )  # TODO change this to adjust the overlapping criteria
+            ):
                 c_name_ref = "ref" + str(clusters_ref[i].get_id())
                 c_name_prod = "prod" + str(j)
                 G.add_edge(c_name_ref, c_name_prod)
@@ -99,8 +103,6 @@ def MEC(
                 print(f"{node} is splitted in {neighbors}")
             elif node in active_clusters_prod and len(neighbors) == 0:
                 print(f"{node} appeared")
-            # elif node in active_clusters_prod and len(neighbors) == 1:
-            # print(f'{node} is the new version of {neighbors[0]}')
             elif node in active_clusters_prod and len(neighbors) > 1:
                 print(f"{node} is the result of the merging of in {neighbors}")
 

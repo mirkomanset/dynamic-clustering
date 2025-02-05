@@ -10,11 +10,11 @@ from scripts.utils import (
     extract_integer,
     count_occurrences_in_sublists,
     find_missing_positive,
-    get_snapshot_image,
     #keep_first_occurrences,
     sublist_present,
-    find_closest_cluster,
 )
+
+from scripts.utils_dc import get_snapshot_image, find_closest_cluster
 from scripts.tracker import MEC
 
 

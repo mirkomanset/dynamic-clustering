@@ -1,6 +1,5 @@
-from scripts.clusterer import CluStreamMicroCluster
+from scripts.streaming_clusterer import CluStreamMicroCluster
 from river import base
-
 
 class Macrocluster:
     """Macrocluster class to represent macroclusters"""
