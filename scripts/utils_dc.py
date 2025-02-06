@@ -244,3 +244,43 @@ def get_reduced_snapshot_image(
     ax.legend(handles=scatter_handles, title="Clusters")
 
     return fig
+
+
+def bhattacharyya_distance(mean1, cov1, mean2, cov2):
+    """
+    Computes the Bhattacharyya distance between two multivariate Gaussian distributions.
+
+    Args:
+        mean1: Mean of the first Gaussian (NumPy array).
+        cov1: Covariance matrix of the first Gaussian (NumPy 2D array).
+        mean2: Mean of the second Gaussian (NumPy array).
+        cov2: Covariance matrix of the second Gaussian (NumPy 2D array).
+
+    Returns:
+        The Bhattacharyya distance (float).  Returns np.inf if any covariance matrix is singular.
+    """
+
+    try:
+        # Calculate the average covariance matrix
+        cov_avg = (cov1 + cov2) / 2
+
+        # Calculate the difference between the means
+        mean_diff = mean1 - mean2
+
+        # Calculate the first term of the Bhattacharyya distance
+        term1 = 0.125 * mean_diff.T @ np.linalg.inv(cov_avg) @ mean_diff
+
+        # Calculate the second term of the Bhattacharyya distance
+        k1 = np.linalg.det(cov1)
+        k2 = np.linalg.det(cov2)
+        ka = np.linalg.det(cov_avg)
+        if k1<=0 or k2<=0 or ka<=0: #check if the determinants are not positive (singular matrices)
+            return np.inf
+        term2 = 0.5 * np.log(ka / np.sqrt(k1 * k2))
+
+        # Calculate the Bhattacharyya distance
+        b_dist = term1 + term2
+
+        return b_dist
+    except np.linalg.LinAlgError: #if the matrix is singular, return infinity
+        return np.inf
