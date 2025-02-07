@@ -9,7 +9,7 @@ import os
 from river import stream, base
 from scripts.gaussian_core import Snapshot, Macrocluster
 from scripts.gaussian_streaming_clusterer import CluStreamMicroCluster
-from scripts.utils_dc import (
+from scripts.gaussian_utils_dc import (
     compute_min_distance,
     overlapping_score,
     find_closest_cluster,

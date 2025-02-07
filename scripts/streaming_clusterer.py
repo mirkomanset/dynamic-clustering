@@ -5,9 +5,11 @@ from collections import defaultdict
 
 from sklearn.cluster import KMeans
 
-from river import base, stats, utils
+from river import base, utils
 
 from scripts.utils_dc import compute_radius
+
+from scripts.core import CluStreamMicroCluster
 
 
 class CluStream(base.Clusterer):
@@ -244,93 +246,3 @@ class CluStream(base.Clusterer):
 
     def get_macroclusters(self):
         return self.macroclusters
-
-
-class CluStreamMicroCluster(base.Base):
-    """Micro-cluster class."""
-
-    def __init__(
-        self,
-        x: dict = defaultdict(float),
-        w: float | None = None,
-        timestamp: int | None = None,
-    ):
-        # Initialize with sample x
-        self.x = x
-        self.w = w
-        self.timestamp = timestamp
-        self.var_x = {}
-        for k in x:
-            v = stats.Var()
-            v.update(x[k], w)
-            self.var_x[k] = v
-        self.var_time = stats.Var()
-        self.var_time.update(timestamp, w)
-
-    @property
-    def center(self):
-        return {k: var.mean.get() for k, var in self.var_x.items()}
-
-    def radius(self, r_factor):
-        if self.weight == 1:
-            return 0
-        return self._deviation() * r_factor
-
-    def _deviation(self):
-        dev_sum = 0
-        for var in self.var_x.values():
-            dev_sum += math.sqrt(var.get())
-        return dev_sum / len(self.var_x) if len(self.var_x) > 0 else math.inf
-
-    @property
-    def weight(self):
-        return self.var_time.n
-
-    def insert(self, x, w, timestamp):
-        self.var_time.update(timestamp, w)
-        for x_idx, x_val in x.items():
-            self.var_x[x_idx].update(x_val, w)
-
-    def relevance_stamp(self, max_mc):
-        mu_time = self.var_time.mean.get()
-        if self.weight < 2 * max_mc:
-            return mu_time
-
-        sigma_time = math.sqrt(self.var_time.get())
-        return mu_time + sigma_time * self._quantile(max_mc / (2 * self.weight))
-
-    def _quantile(self, z):
-        return math.sqrt(2) * self.inverse_error(2 * z - 1)
-
-    @staticmethod
-    def inverse_error(x):
-        z = math.sqrt(math.pi) * x
-        res = x / 2
-        z2 = z * z
-
-        zprod = z2 * z
-        res += (1.0 / 24) * zprod
-
-        zprod *= z2  # z5
-        res += (7.0 / 960) * zprod
-
-        zprod *= z2  # z ^ 7
-        res += (127 * zprod) / 80640
-
-        zprod *= z2  # z ^ 9
-        res += (4369 * zprod) / 11612160
-
-        zprod *= z2  # z ^ 11
-        res += (34807 * zprod) / 364953600
-
-        zprod *= z2  # z ^ 13
-        res += (20036983 * zprod) / 797058662400
-
-        return res
-
-    def __iadd__(self, other):
-        self.var_time += other.var_time
-        self.var_x = {
-            k: self.var_x[k] + other.var_x.get(k, stats.Var()) for k in self.var_x
-        }
-        return self

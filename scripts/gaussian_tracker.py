@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 
 from scripts.gaussian_core import Macrocluster
-from scripts.utils_dc import (
+from scripts.gaussian_utils_dc import (
     bhattacharyya_distance,
     hellinger_distance,
     mmd,
