@@ -1,4 +1,4 @@
-from scripts.streaming_clusterer import CluStreamMicroCluster
+from scripts.gaussian_streaming_clusterer import CluStreamMicroCluster
 from river import base
 import numpy as np
 
@@ -44,7 +44,7 @@ class Macrocluster:
         """
         if not isinstance(other, Macrocluster):
             return NotImplemented  # Indicate that comparison is not supported
-        return (self.center == other.center) and (self.cov == other.cov)
+        return (self.center == other.center) and np.array_equal(self.cov, other.cov)
 
     def __hash__(self):
         """

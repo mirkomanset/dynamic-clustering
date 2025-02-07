@@ -7,13 +7,14 @@ import os
 
 
 from river import stream, base
-from scripts.core import Snapshot, Macrocluster
-from scripts.streaming_clusterer import CluStreamMicroCluster
+from scripts.gaussian_core import Snapshot, Macrocluster
+from scripts.gaussian_streaming_clusterer import CluStreamMicroCluster
 from scripts.utils_dc import (
     compute_min_distance,
     overlapping_score,
     find_closest_cluster,
     get_reduced_snapshot_image,
+    gaussian_overlapping_score,
 )
 
 from scripts.utils import (
@@ -23,7 +24,7 @@ from scripts.utils import (
     sublist_present,
     clean_directory,
 )
-from scripts.tracker import MEC
+from scripts.gaussian_tracker import MEC
 
 from sklearn.decomposition import PCA
 # from umap import UMAP
@@ -229,7 +230,7 @@ class DynamicClusterer:
                     self.macroclusters[i], new_clusters
                 )
                 print(closest_cluster)
-                score = 1 - overlapping_score(closest_cluster, self.macroclusters[i])
+                score = 1 - gaussian_overlapping_score(closest_cluster, self.macroclusters[i])
                 disappeared_clusters.append(self.macroclusters[i].get_id())
                 print(f"(!) {self.macroclusters[i]} DISAPPEARED (score: {score})")
 
@@ -257,7 +258,7 @@ class DynamicClusterer:
             # Manage appearance
             if count_occurrences_in_sublists(i, values_list) == 0:
                 closest_cluster = find_closest_cluster(new_cluster, old_clusters)
-                score = 1 - overlapping_score(closest_cluster, new_cluster)
+                score = 1 - gaussian_overlapping_score(closest_cluster, new_cluster)
                 new_id = find_missing_positive(current_ids_list)
                 current_ids_list.append(new_id)
                 new_cluster.update_id(new_id)
@@ -273,7 +274,7 @@ class DynamicClusterer:
                         and self.macroclusters[j].get_id() not in survived_clusters
                     ):
                         new_cluster.update_id(self.macroclusters[j].get_id())
-                        score = overlapping_score(self.macroclusters[j], new_cluster)
+                        score = gaussian_overlapping_score(self.macroclusters[j], new_cluster)
                         print(
                             f"{self.macroclusters[j]} SURVIVED as {new_cluster} (score: {score})"
                         )
@@ -291,7 +292,7 @@ class DynamicClusterer:
                         i in mapping[self.macroclusters[j].get_id()]
                         and self.macroclusters[j].get_id() in survived_clusters
                     ):  # Manage splitting
-                        score = overlapping_score(self.macroclusters[j], new_cluster)
+                        score = gaussian_overlapping_score(self.macroclusters[j], new_cluster)
                         new_id = find_missing_positive(current_ids_list)
                         current_ids_list.append(new_id)
                         new_cluster.update_id(new_id)
@@ -309,7 +310,7 @@ class DynamicClusterer:
                     if i in mapping[self.macroclusters[j].get_id()]:
                         from_clusters.append(self.macroclusters[j].get_id())
                         overlapping_scores.append(
-                            overlapping_score(self.macroclusters[j], new_cluster)
+                            gaussian_overlapping_score(self.macroclusters[j], new_cluster)
                         )
                         # Merging clusters are removed from the actual result
                         if self.macroclusters[j].get_id() not in disappeared_clusters:

@@ -16,7 +16,7 @@ class CluStream(base.Clusterer):
         micro_cluster_r_factor: int = 2,
         time_window: int = 1000,
         time_gap: int = 100,
-        seed: int | None = None,
+        seed: int | None = 42,
         **kwargs,
     ):
         super().__init__()
@@ -151,7 +151,7 @@ class CluStream(base.Clusterer):
             mc_centers_list.append(list(dict(element).values()))
         mc_centers_array = np.array(mc_centers_list)
 
-        # Multiple runs of kmeans to find the best k based on silhouette
+        # Multiple runs of kmeans to find the best k based on bic
         for k in range(1, int(math.sqrt(len(self._mc_centers)))):
             # for k in range(1, len(self._mc_centers)):
 
@@ -159,7 +159,7 @@ class CluStream(base.Clusterer):
             self._gaumix_mc.fit(mc_centers_array)
 
             # Compute the BIC
-            bic = self._gaumix_mc.bic
+            bic = self._gaumix_mc.bic(mc_centers_array)
             bic_list.append(bic)
 
         # Find best k
@@ -168,7 +168,7 @@ class CluStream(base.Clusterer):
         # Apply final clustering using the best k
         mc_grouped = [[] for _ in range(self.best_k)]
 
-        self._gaumix_mc = GaussianMixture(n_components=self.best_k, random_state=self.seed, covariance_type='diag')
+        self._gaumix_mc = GaussianMixture(n_components=self.best_k, random_state=self.seed, covariance_type='full')
         self._gaumix_mc.fit(mc_centers_array)
 
         for center in self._mc_centers.values():

@@ -18,7 +18,7 @@ class CluStream(base.Clusterer):
         micro_cluster_r_factor: int = 2,
         time_window: int = 1000,
         time_gap: int = 100,
-        seed: int | None = None,
+        seed: int | None = 42,
         **kwargs,
     ):
         super().__init__()

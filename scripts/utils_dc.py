@@ -1,8 +1,9 @@
 # Snapshot class to keep the information about the current situation of micro/macro clusters and model
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.stats import multivariate_normal
 from scripts.utils import array_to_dict
-from scripts.core import Macrocluster, Snapshot
+from scripts.gaussian_core import Macrocluster, Snapshot
 from sklearn.base import BaseEstimator
 
 
@@ -246,41 +247,104 @@ def get_reduced_snapshot_image(
     return fig
 
 
-def bhattacharyya_distance(mean1, cov1, mean2, cov2):
+def bhattacharyya_distance(mean1, cov1, mean2, cov2, grid_size=100):
+    """Approximates Bhattacharyya distance for N-dimensional normal distributions 
+       using discretization.
     """
-    Computes the Bhattacharyya distance between two multivariate Gaussian distributions.
+
+    n_dim = len(mean1)  # Determine the number of dimensions
+
+    # Determine min/max values for each dimension
+    min_vals = np.zeros(n_dim)
+    max_vals = np.zeros(n_dim)
+
+    for i in range(n_dim):
+        min_vals[i] = min(mean1[i], mean2[i]) - 5 * max(np.sqrt(cov1[i, i]), np.sqrt(cov2[i, i]))
+        max_vals[i] = max(mean1[i], mean2[i]) + 5 * max(np.sqrt(cov1[i, i]), np.sqrt(cov2[i, i]))
+
+    # Create the grid
+    grid_points = []
+    for i in range(n_dim):
+        grid_points.append(np.linspace(min_vals[i], max_vals[i], grid_size))
+
+    # Create the meshgrid (N-dimensional)
+    mesh = np.meshgrid(*grid_points, indexing='ij') # indexing='ij' is important for N-D
+    pos = np.stack(mesh, axis=-1)  # Shape will be (grid_size, grid_size, ..., grid_size, n_dim)
+
+    rv1 = multivariate_normal(mean1, cov1)
+    rv2 = multivariate_normal(mean2, cov2)
+
+    p = rv1.pdf(pos)
+    q = rv2.pdf(pos)
+
+    # Calculate cell volume (important for N-D)
+    cell_volume = 1.0
+    for i in range(n_dim):
+        cell_volume *= (grid_points[i][1] - grid_points[i][0])
+
+    p_discrete = p * cell_volume
+    q_discrete = q * cell_volume
+
+    # Normalize
+    p_discrete = p_discrete / np.sum(p_discrete)
+    q_discrete = q_discrete / np.sum(q_discrete)
+
+    # Flatten the arrays
+    p_flat = p_discrete.flatten()
+    q_flat = q_discrete.flatten()
+
+    epsilon = 1e-10
+    p_flat = np.array(p_flat) + epsilon
+    q_flat = np.array(q_flat) + epsilon
+
+    bc = np.sum(np.sqrt(p_flat * q_flat))
+    return -np.log(bc)
+
+def hellinger_distance(mean1, cov1, mean2, cov2):
+    """
+    Calculates the Hellinger distance between two N-dimensional multivariate 
+    normal distributions using the analytical formula.
 
     Args:
-        mean1: Mean of the first Gaussian (NumPy array).
-        cov1: Covariance matrix of the first Gaussian (NumPy 2D array).
-        mean2: Mean of the second Gaussian (NumPy array).
-        cov2: Covariance matrix of the second Gaussian (NumPy 2D array).
+        mean1: Mean of the first distribution (numpy array of size N).
+        cov1: Covariance matrix of the first distribution (NxN numpy array).
+        mean2: Mean of the second distribution (numpy array of size N).
+        cov2: Covariance matrix of the second distribution (NxN numpy array).
 
     Returns:
-        The Bhattacharyya distance (float).  Returns np.inf if any covariance matrix is singular.
+        The Hellinger distance between the two distributions.
     """
 
-    try:
-        # Calculate the average covariance matrix
-        cov_avg = (cov1 + cov2) / 2
+    n_dim = len(mean1)  # Get the number of dimensions
 
-        # Calculate the difference between the means
-        mean_diff = mean1 - mean2
+    det_cov1 = np.linalg.det(cov1)
+    det_cov2 = np.linalg.det(cov2)
+    avg_cov = (cov1 + cov2) / 2
+    det_cov_sum = np.linalg.det(avg_cov)
 
-        # Calculate the first term of the Bhattacharyya distance
-        term1 = 0.125 * mean_diff.T @ np.linalg.inv(cov_avg) @ mean_diff
+    diff_mean = np.array(mean1) - np.array(mean2)  # Ensure numpy array for operations
+    inv_avg_cov = np.linalg.inv(avg_cov)
 
-        # Calculate the second term of the Bhattacharyya distance
-        k1 = np.linalg.det(cov1)
-        k2 = np.linalg.det(cov2)
-        ka = np.linalg.det(cov_avg)
-        if k1<=0 or k2<=0 or ka<=0: #check if the determinants are not positive (singular matrices)
-            return np.inf
-        term2 = 0.5 * np.log(ka / np.sqrt(k1 * k2))
+    exponent = -0.125 * diff_mean.T @ inv_avg_cov @ diff_mean
 
-        # Calculate the Bhattacharyya distance
-        b_dist = term1 + term2
+    term1 = (2 * np.sqrt(det_cov1) * np.sqrt(det_cov2)) / det_cov_sum
+    term2 = np.exp(exponent)
+    return np.sqrt(1 - np.sqrt(term1 * term2))
 
-        return b_dist
-    except np.linalg.LinAlgError: #if the matrix is singular, return infinity
-        return np.inf
+
+def gaussian_overlapping_score(
+    cluster1: Macrocluster, cluster2: Macrocluster, overlapping_factor: float = 1
+) -> float:
+    """Function to compute the overlapping score between two clusters.
+
+    Args:
+        cluster1 (Macrocluster): first cluster
+        cluster2 (Macrocluster): second cluster
+        overlapping_factor (int, optional): parameter to be defined. Defaults to 1.
+
+    Returns:
+        float: overlapping score between the two clusters
+    """
+    dist = hellinger_distance(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov())
+    #dist = bhattacharyya_distance(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov())
+    return 1 - dist
