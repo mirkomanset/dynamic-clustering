@@ -2,6 +2,7 @@ from scripts.gaussian_streaming_clusterer import CluStreamMicroCluster
 from river import base
 import numpy as np
 
+
 class Macrocluster:
     """Macrocluster class to represent macroclusters"""
 
@@ -58,9 +59,7 @@ class Macrocluster:
         center_tuple = (
             tuple(self.center) if isinstance(self.center, list) else self.center
         )
-        cov_tuple = (
-            tuple(self.cov) if isinstance(self.cov, list) else self.cov
-        )
+        cov_tuple = tuple(self.cov) if isinstance(self.cov, list) else self.cov
 
         # Return the hash of a tuple containing center and cov
         return hash((center_tuple, cov_tuple))

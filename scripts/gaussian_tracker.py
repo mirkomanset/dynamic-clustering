@@ -3,7 +3,12 @@ import matplotlib.pyplot as plt
 import networkx as nx
 
 from scripts.gaussian_core import Macrocluster
-from scripts.utils_dc import bhattacharyya_distance, hellinger_distance, mmd, wasserstein_multivariate
+from scripts.utils_dc import (
+    bhattacharyya_distance,
+    hellinger_distance,
+    mmd,
+    wasserstein_multivariate,
+)
 
 # MEC algorithm for tracking
 # Based on overlapping and bipartite graph
@@ -53,13 +58,11 @@ def MEC(
             cprod_center = clusters_prod[j].get_center()
 
             dist = hellinger_distance(cref_center, cref_cov, cprod_center, cprod_cov)
-            #dist = bhattacharyya_distance(cref_center, cref_cov, cprod_center, cprod_cov)
-            #dist = mmd(cref_center, cref_cov, cprod_center, cprod_cov)
+            # dist = bhattacharyya_distance(cref_center, cref_cov, cprod_center, cprod_cov)
+            # dist = mmd(cref_center, cref_cov, cprod_center, cprod_cov)
 
             if print_statistics:
-                print(
-                    f"ref{clusters_ref[i].get_id()} - center: {cref_center}"
-                )
+                print(f"ref{clusters_ref[i].get_id()} - center: {cref_center}")
                 print(f"prod{j} - center: {cprod_center}")
                 print(
                     f"hellinger distance: {dist}",
@@ -69,18 +72,14 @@ def MEC(
             if (
                 dist
                 < overlapping_factor
-                * (
-                   0.5 
-                )  # TODO change this to adjust the overlapping criteria
+                * (0.5)  # TODO change this to adjust the overlapping criteria
             ):
                 c_name_ref = "ref" + str(clusters_ref[i].get_id())
                 c_name_prod = "prod" + str(j)
                 G.add_edge(c_name_ref, c_name_prod)
 
                 centers_distances[f"{c_name_ref}{c_name_prod}"] = dist
-                cov_difference[f"{c_name_ref}{c_name_prod}"] = (
-                    cref_cov - cprod_cov
-                )
+                cov_difference[f"{c_name_ref}{c_name_prod}"] = cref_cov - cprod_cov
 
     if print_graph:
         nx.draw(G, node_color=color_map, with_labels=True)

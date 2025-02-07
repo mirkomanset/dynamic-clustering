@@ -9,7 +9,6 @@ from scripts.utils_dc import gmm_inertia
 from river import base, stats, utils
 
 
-
 class CluStream(base.Clusterer):
     def __init__(
         self,
@@ -185,7 +184,9 @@ class CluStream(base.Clusterer):
         # Apply final clustering using the best k
         mc_grouped = [[] for _ in range(self.best_k)]
 
-        self._gaumix_mc = GaussianMixture(n_components=self.best_k, random_state=self.seed, covariance_type='full')
+        self._gaumix_mc = GaussianMixture(
+            n_components=self.best_k, random_state=self.seed, covariance_type="full"
+        )
         self._gaumix_mc.fit(mc_centers_array)
 
         for center in self._mc_centers.values():
@@ -209,11 +210,11 @@ class CluStream(base.Clusterer):
         self.centers_list = []
         for element in list(self.centers.values()):
             self.centers_list.append(list(dict(element).values()))
- 
+
         self.macroclusters = []
         for i in range(self.best_k):
             center = list(dict(list(self.centers.values())[i]).values())
-            cov =self._gaumix_mc.covariances_[i]
+            cov = self._gaumix_mc.covariances_[i]
             self.macroclusters.append({"center": center, "cov": cov})
 
         # print(self.macroclusters)
