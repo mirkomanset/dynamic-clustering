@@ -3,6 +3,8 @@ import math
 from collections import defaultdict
 
 from sklearn.mixture import GaussianMixture
+from sklearn.metrics import silhouette_score
+from scripts.utils_dc import gmm_inertia
 
 from river import base, stats, utils
 
@@ -145,25 +147,40 @@ class CluStream(base.Clusterer):
     def apply_macroclustering(self):
         self._mc_centers = {i: mc.center for i, mc in self.micro_clusters.items()}
 
-        bic_list = []
+        sil = []
+        wcss_2 = 0
         mc_centers_list = []
         for element in list(self._mc_centers.values()):
             mc_centers_list.append(list(dict(element).values()))
         mc_centers_array = np.array(mc_centers_list)
 
-        # Multiple runs of kmeans to find the best k based on bic
-        for k in range(1, int(math.sqrt(len(self._mc_centers)))):
-            # for k in range(1, len(self._mc_centers)):
+        # Multiple runs of kmeans to find the best k based on silhouette
+        for k in range(2, int(math.sqrt(len(self._mc_centers)))):
+            # for k in range(2, len(self._mc_centers)):
+            labels = []
 
             self._gaumix_mc = GaussianMixture(n_components=k, random_state=self.seed)
             self._gaumix_mc.fit(mc_centers_array)
+            labels = self._gaumix_mc.predict(mc_centers_array)
 
-            # Compute the BIC
-            bic = self._gaumix_mc.bic(mc_centers_array)
-            bic_list.append(bic)
+            # Compute the silhouette
+            s = silhouette_score(mc_centers_array, labels, metric="euclidean")
+            sil.append(s)
+
+            # Compute wcss score for the solution k=2
+            if k == 2:
+                wcss_2 = gmm_inertia(self._gaumix_mc, mc_centers_array)
 
         # Find best k
-        self.best_k = bic_list.index(min(bic_list)) + 1
+        self.best_k = sil.index(max(sil)) + 2
+
+        # Compare the wcss to k=1 when the best solution found with silhouette is k=2
+        if self.best_k == 2:
+            self._gaumix_mc = GaussianMixture(n_components=1, random_state=self.seed)
+            self._gaumix_mc.fit(mc_centers_array)
+            wcss_1 = gmm_inertia(self._gaumix_mc, mc_centers_array)
+            if wcss_1 < wcss_2:
+                self.best_k = 1
 
         # Apply final clustering using the best k
         mc_grouped = [[] for _ in range(self.best_k)]

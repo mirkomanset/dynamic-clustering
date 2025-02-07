@@ -5,7 +5,7 @@ from scipy.stats import multivariate_normal
 from scripts.utils import array_to_dict
 from scripts.gaussian_core import Macrocluster, Snapshot
 from sklearn.base import BaseEstimator
-
+from scipy.stats import wasserstein_distance
 
 def compute_min_distance(x, microclusters):
     """function to compute the minimum distance from a point to any microcluster
@@ -298,7 +298,9 @@ def bhattacharyya_distance(mean1, cov1, mean2, cov2, grid_size=100):
     q_flat = np.array(q_flat) + epsilon
 
     bc = np.sum(np.sqrt(p_flat * q_flat))
-    return -np.log(bc)
+
+    x = -np.log(bc)
+    return x/(1+x)
 
 def hellinger_distance(mean1, cov1, mean2, cov2):
     """
@@ -314,9 +316,6 @@ def hellinger_distance(mean1, cov1, mean2, cov2):
     Returns:
         The Hellinger distance between the two distributions.
     """
-
-    n_dim = len(mean1)  # Get the number of dimensions
-
     det_cov1 = np.linalg.det(cov1)
     det_cov2 = np.linalg.det(cov2)
     avg_cov = (cov1 + cov2) / 2
@@ -329,7 +328,110 @@ def hellinger_distance(mean1, cov1, mean2, cov2):
 
     term1 = (2 * np.sqrt(det_cov1) * np.sqrt(det_cov2)) / det_cov_sum
     term2 = np.exp(exponent)
-    return np.sqrt(1 - np.sqrt(term1 * term2))
+    
+    value_inside_sqrt = 1 - np.sqrt(term1 * term2)
+    clipped_value = np.clip(value_inside_sqrt, 0, 1)  # Clip to [0, 1]
+    
+    return np.sqrt(clipped_value)
+
+
+def mmd(mean1, cov1, mean2, cov2, kernel='rbf', gamma=1.0):
+    """
+    Calculates the MMD between two multivariate normal distributions in n dimensions.
+
+    Args:
+        mean1: Mean of the first distribution (numpy array of size n).
+        cov1: Covariance matrix of the first distribution (nxn numpy array).
+        mean2: Mean of the second distribution (numpy array of size n).
+        cov2: Covariance matrix of the second distribution (nxn numpy array).
+        kernel: The kernel to use ('linear' or 'rbf'). Default: 'rbf'
+        gamma: Bandwidth parameter for the RBF kernel. Only used if kernel='rbf'.
+
+    Returns:
+        The MMD between the two distributions.
+    """
+    """
+    Calculates the MMD between two multivariate normal distributions in n dimensions.
+
+    Args:
+        mean1: Mean of the first distribution (numpy array or list of size n).
+        cov1: Covariance matrix of the first distribution (nxn numpy array or list of lists).
+        mean2: Mean of the second distribution (numpy array or list of size n).
+        cov2: Covariance matrix of the second distribution (nxn numpy array or list of lists).
+        kernel: The kernel to use ('linear' or 'rbf'). Default: 'rbf'
+        gamma: Bandwidth parameter for the RBF kernel. Only used if kernel='rbf'.
+        num_samples: Number of samples to use for the linear kernel when covariance matrices are different.
+
+    Returns:
+        The MMD between the two distributions.
+    """
+
+    # Convert to NumPy arrays if they are lists
+    mean1 = np.array(mean1) if isinstance(mean1, list) else mean1
+    mean2 = np.array(mean2) if isinstance(mean2, list) else mean2
+    cov1 = np.array(cov1) if isinstance(cov1, list) else cov1
+    cov2 = np.array(cov2) if isinstance(cov2, list) else cov2
+
+    if kernel == 'rbf':  # Gaussian kernel
+        k_xx = np.exp(-gamma * (mean1 - mean1).T @ np.linalg.inv((cov1 + cov1) / 2) @ (mean1 - mean1) / 2) + np.exp(-gamma * (mean1 - mean1).T @ np.linalg.inv((cov1 + cov1) / 2) @ (mean1 - mean1) / 2)
+        k_yy = np.exp(-gamma * (mean2 - mean2).T @ np.linalg.inv((cov2 + cov2) / 2) @ (mean2 - mean2) / 2) + np.exp(-gamma * (mean2 - mean2).T @ np.linalg.inv((cov2 + cov2) / 2) @ (mean2 - mean2) / 2)
+        k_xy = 2*np.exp(-gamma * (mean1 - mean2).T @ np.linalg.inv((cov1 + cov2) / 2) @ (mean1 - mean2) / 2)
+        mmd2 = k_xx + k_yy - k_xy
+        return np.sqrt(mmd2) if mmd2 > 0 else 0
+
+    else:
+        raise ValueError("Invalid kernel. Choose 'linear' or 'rbf'.")
+
+def wasserstein_multivariate(mean1, cov1, mean2, cov2, approximate=True, n_projections=50, epsilon=1e-6):
+    """
+    Computes the Wasserstein distance between two multivariate (and optionally Gaussian) distributions.
+
+    Args:
+        mean1: Mean of the first distribution (NumPy array).
+        cov1: Covariance matrix of the first distribution (NumPy array).
+        mean2: Mean of the second distribution (NumPy array).
+        cov2: Covariance matrix of the second distribution (NumPy array).
+        approximate: Whether to use an approximation (Sliced Wasserstein) for >1D.
+        n_projections: Number of random projections to use if approximate=True.
+        epsilon: Small positive constant for covariance matrix regularization (if needed)
+
+    Returns:
+        The Wasserstein distance (or Sliced Wasserstein approximation). Returns NaN if input is invalid.
+    """
+    mean1 = np.array(mean1) if isinstance(mean1, list) else mean1
+    mean2 = np.array(mean2) if isinstance(mean2, list) else mean2
+    cov1 = np.array(cov1) if isinstance(cov1, list) else cov1
+    cov2 = np.array(cov2) if isinstance(cov2, list) else cov2
+
+    n = mean1.shape[0]  # Dimensionality
+
+    if n == 1:  # 1D case (exact)
+        # For 1D, we can use the means directly and don't need the covariances
+        return wasserstein_distance([mean1], [mean2]) # scipy.stats.wasserstein_distance
+
+    elif approximate:  # Multidimensional approximation (Sliced Wasserstein)
+        swd = 0
+        for _ in range(n_projections):
+            projection = np.random.randn(n)  # Random projection vector
+            projection /= np.linalg.norm(projection)
+
+            # Project the means (this is the key change for using means/covariances)
+            mean1_proj = mean1 @ projection
+            mean2_proj = mean2 @ projection
+
+            # Approximate 1D Wasserstein distance using means only
+            emd = np.abs(mean1_proj - mean2_proj)
+            swd += emd
+
+            x = swd / n_projections
+
+        return x/(1+x)
+
+    elif not approximate:  # Multidimensional exact case (requires samples)
+      return np.nan # Return NaN if exact case is selected
+
+    else:
+      return np.nan # Return NaN if some error occurs
 
 
 def gaussian_overlapping_score(
@@ -347,4 +449,23 @@ def gaussian_overlapping_score(
     """
     dist = hellinger_distance(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov())
     #dist = bhattacharyya_distance(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov())
-    return 1 - dist
+    #dist = mmd(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov(), kernel='rbf', gamma=0.1)
+    #dist = wasserstein_multivariate(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov())
+    return 1-dist
+
+
+
+
+def gmm_inertia(gmm, X):
+    """
+    Computes the "inertia" for a GMM, analogous to WCSS in k-means.
+    It's the negative of the weighted log-likelihood.
+
+    Args:
+        gmm: A fitted GaussianMixture object.
+        X: The data (NumPy array).
+
+    Returns:
+        The "inertia" value.
+    """
+    return -gmm.score_samples(X).sum()
