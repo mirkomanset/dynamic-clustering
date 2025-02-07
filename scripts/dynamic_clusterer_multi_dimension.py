@@ -228,7 +228,6 @@ class DynamicClusterer:
                 closest_cluster = find_closest_cluster(
                     self.macroclusters[i], new_clusters
                 )
-                print(closest_cluster)
                 score = 1 - overlapping_score(closest_cluster, self.macroclusters[i])
                 disappeared_clusters.append(self.macroclusters[i].get_id())
                 print(f"(!) {self.macroclusters[i]} DISAPPEARED (score: {score})")
