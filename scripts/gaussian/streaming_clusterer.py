@@ -245,6 +245,3 @@ class CluStream(base.Clusterer):
 
     def get_macroclusters(self):
         return self.macroclusters
-
-
-

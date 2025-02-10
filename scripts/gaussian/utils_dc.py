@@ -7,6 +7,8 @@ from scripts.gaussian.core import Macrocluster, Snapshot
 from sklearn.base import BaseEstimator
 from scipy.stats import wasserstein_distance
 from scipy.spatial.distance import euclidean
+from scipy.linalg import sqrtm
+
 
 def compute_min_distance(x, microclusters):
     """function to compute the minimum distance from a point to any microcluster
@@ -248,64 +250,38 @@ def get_reduced_snapshot_image(
     return fig
 
 
-def bhattacharyya_distance(mean1, cov1, mean2, cov2, grid_size=100):
-    """Approximates Bhattacharyya distance for N-dimensional normal distributions 
-       using discretization.
+def bhattacharyya_distance(mean1, cov1, mean2, cov2):
+    """
+    Calculates the Bhattacharyya distance between two multivariate normal distributions.
+
+    Args:
+        mu_1: Mean vector of the first distribution.
+        Sigma_1: Covariance matrix of the first distribution.
+        mu_2: Mean vector of the second distribution.
+        Sigma_2: Covariance matrix of the second distribution.
+
+    Returns:
+        The Bhattacharyya distance.
+        Returns np.inf if the combined covariance matrix is singular (not invertible).
     """
 
-    n_dim = len(mean1)  # Determine the number of dimensions
+    try:
+        cov = (cov1 + cov2) / 2
+        delta_mu = mean1 - mean2
 
-    # Determine min/max values for each dimension
-    min_vals = np.zeros(n_dim)
-    max_vals = np.zeros(n_dim)
+        term1 = 0.125 * delta_mu.T @ np.linalg.inv(cov) @ delta_mu
+        term2 = 0.5 * np.log(
+            np.linalg.det(cov) / (np.sqrt(np.linalg.det(cov1) * np.linalg.det(cov2)))
+        )  # More numerically stable
 
-    for i in range(n_dim):
-        min_vals[i] = min(mean1[i], mean2[i]) - 5 * max(np.sqrt(cov1[i, i]), np.sqrt(cov2[i, i]))
-        max_vals[i] = max(mean1[i], mean2[i]) + 5 * max(np.sqrt(cov1[i, i]), np.sqrt(cov2[i, i]))
+        return term1 + term2
+    except np.linalg.LinAlgError:  # Handle singular matrix case
+        return np.inf
 
-    # Create the grid
-    grid_points = []
-    for i in range(n_dim):
-        grid_points.append(np.linspace(min_vals[i], max_vals[i], grid_size))
-
-    # Create the meshgrid (N-dimensional)
-    mesh = np.meshgrid(*grid_points, indexing='ij') # indexing='ij' is important for N-D
-    pos = np.stack(mesh, axis=-1)  # Shape will be (grid_size, grid_size, ..., grid_size, n_dim)
-
-    rv1 = multivariate_normal(mean1, cov1)
-    rv2 = multivariate_normal(mean2, cov2)
-
-    p = rv1.pdf(pos)
-    q = rv2.pdf(pos)
-
-    # Calculate cell volume (important for N-D)
-    cell_volume = 1.0
-    for i in range(n_dim):
-        cell_volume *= (grid_points[i][1] - grid_points[i][0])
-
-    p_discrete = p * cell_volume
-    q_discrete = q * cell_volume
-
-    # Normalize
-    p_discrete = p_discrete / np.sum(p_discrete)
-    q_discrete = q_discrete / np.sum(q_discrete)
-
-    # Flatten the arrays
-    p_flat = p_discrete.flatten()
-    q_flat = q_discrete.flatten()
-
-    epsilon = 1e-10
-    p_flat = np.array(p_flat) + epsilon
-    q_flat = np.array(q_flat) + epsilon
-
-    bc = np.sum(np.sqrt(p_flat * q_flat))
-
-    x = -np.log(bc)
-    return x/(1+x)
 
 def hellinger_distance(mean1, cov1, mean2, cov2):
     """
-    Calculates the Hellinger distance between two N-dimensional multivariate 
+    Calculates the Hellinger distance between two N-dimensional multivariate
     normal distributions using the analytical formula.
 
     Args:
@@ -330,17 +306,16 @@ def hellinger_distance(mean1, cov1, mean2, cov2):
 
     exponent = -0.125 * diff_mean.T @ inv_avg_cov @ diff_mean
 
-
     term1 = (2 * np.sqrt(det_cov1) * np.sqrt(det_cov2)) / det_cov_sum
     term2 = np.exp(exponent)
-    
+
     value_inside_sqrt = 1 - np.sqrt(term1 * term2)
     clipped_value = np.clip(value_inside_sqrt, 0, 1)  # Clip to [0, 1]
-    
+
     return np.sqrt(clipped_value)
 
 
-def mmd(mean1, cov1, mean2, cov2, kernel='rbf', gamma=1.0):
+def mmd(mean1, cov1, mean2, cov2, kernel="rbf", gamma=1.0):
     """
     Calculates the MMD between two multivariate normal distributions in n dimensions.
 
@@ -377,117 +352,131 @@ def mmd(mean1, cov1, mean2, cov2, kernel='rbf', gamma=1.0):
     cov1 = np.array(cov1) if isinstance(cov1, list) else cov1
     cov2 = np.array(cov2) if isinstance(cov2, list) else cov2
 
-    if kernel == 'rbf':  # Gaussian kernel
-        k_xx = np.exp(-gamma * (mean1 - mean1).T @ np.linalg.inv((cov1 + cov1) / 2) @ (mean1 - mean1) / 2) + np.exp(-gamma * (mean1 - mean1).T @ np.linalg.inv((cov1 + cov1) / 2) @ (mean1 - mean1) / 2)
-        k_yy = np.exp(-gamma * (mean2 - mean2).T @ np.linalg.inv((cov2 + cov2) / 2) @ (mean2 - mean2) / 2) + np.exp(-gamma * (mean2 - mean2).T @ np.linalg.inv((cov2 + cov2) / 2) @ (mean2 - mean2) / 2)
-        k_xy = 2*np.exp(-gamma * (mean1 - mean2).T @ np.linalg.inv((cov1 + cov2) / 2) @ (mean1 - mean2) / 2)
+    if kernel == "rbf":  # Gaussian kernel
+        k_xx = np.exp(
+            -gamma
+            * (mean1 - mean1).T
+            @ np.linalg.inv((cov1 + cov1) / 2)
+            @ (mean1 - mean1)
+            / 2
+        ) + np.exp(
+            -gamma
+            * (mean1 - mean1).T
+            @ np.linalg.inv((cov1 + cov1) / 2)
+            @ (mean1 - mean1)
+            / 2
+        )
+        k_yy = np.exp(
+            -gamma
+            * (mean2 - mean2).T
+            @ np.linalg.inv((cov2 + cov2) / 2)
+            @ (mean2 - mean2)
+            / 2
+        ) + np.exp(
+            -gamma
+            * (mean2 - mean2).T
+            @ np.linalg.inv((cov2 + cov2) / 2)
+            @ (mean2 - mean2)
+            / 2
+        )
+        k_xy = 2 * np.exp(
+            -gamma
+            * (mean1 - mean2).T
+            @ np.linalg.inv((cov1 + cov2) / 2)
+            @ (mean1 - mean2)
+            / 2
+        )
         mmd2 = k_xx + k_yy - k_xy
         return np.sqrt(mmd2) if mmd2 > 0 else 0
 
     else:
         raise ValueError("Invalid kernel. Choose 'linear' or 'rbf'.")
 
-def wasserstein_multivariate(mean1, cov1, mean2, cov2, approximate=True, n_projections=50, epsilon=1e-6):
+
+def wasserstein_distance(mu1, Sigma1, mu2, Sigma2):
     """
-    Computes the Wasserstein distance between two multivariate (and optionally Gaussian) distributions.
+    Calculates the Wasserstein-2 distance between two multivariate Gaussian distributions.
 
     Args:
-        mean1: Mean of the first distribution (NumPy array).
-        cov1: Covariance matrix of the first distribution (NumPy array).
-        mean2: Mean of the second distribution (NumPy array).
-        cov2: Covariance matrix of the second distribution (NumPy array).
-        approximate: Whether to use an approximation (Sliced Wasserstein) for >1D.
-        n_projections: Number of random projections to use if approximate=True.
-        epsilon: Small positive constant for covariance matrix regularization (if needed)
+        mu1: Mean vector of the first Gaussian.
+        Sigma1: Covariance matrix of the first Gaussian.
+        mu2: Mean vector of the second Gaussian.
+        Sigma2: Covariance matrix of the second Gaussian.
 
     Returns:
-        The Wasserstein distance (or Sliced Wasserstein approximation). Returns NaN if input is invalid.
+        The Wasserstein-2 distance.
+        Returns np.inf if the square root of the matrix difference is not real-valued.
     """
-    mean1 = np.array(mean1) if isinstance(mean1, list) else mean1
-    mean2 = np.array(mean2) if isinstance(mean2, list) else mean2
-    cov1 = np.array(cov1) if isinstance(cov1, list) else cov1
-    cov2 = np.array(cov2) if isinstance(cov2, list) else cov2
-
-    n = mean1.shape[0]  # Dimensionality
-
-    if n == 1:  # 1D case (exact)
-        # For 1D, we can use the means directly and don't need the covariances
-        return wasserstein_distance([mean1], [mean2]) # scipy.stats.wasserstein_distance
-
-    elif approximate:  # Multidimensional approximation (Sliced Wasserstein)
-        swd = 0
-        for _ in range(n_projections):
-            projection = np.random.randn(n)  # Random projection vector
-            projection /= np.linalg.norm(projection)
-
-            # Project the means (this is the key change for using means/covariances)
-            mean1_proj = mean1 @ projection
-            mean2_proj = mean2 @ projection
-
-            # Approximate 1D Wasserstein distance using means only
-            emd = np.abs(mean1_proj - mean2_proj)
-            swd += emd
-
-            x = swd / n_projections
-
-        return x/(1+x)
-
-    elif not approximate:  # Multidimensional exact case (requires samples)
-      return np.nan # Return NaN if exact case is selected
-
-    else:
-      return np.nan # Return NaN if some error occurs
-    
-def classic_dist(mean1, cov1, mean2, cov2):
-# Calculate Euclidean distance between means
-  trace1 = np.trace(cov1)
-  #num_variables1 = cov1.shape[0]  # Or covariance_matrix.shape[1] since it's square
-  #average_variance1 = trace1 / num_variables1
-  average_variance1 = np.max(trace1)
-
-  trace2 = np.trace(cov2)
-  #num_variables2 = cov2.shape[0]  # Or covariance_matrix.shape[1] since it's square
-  #average_variance2 = trace2 / num_variables2
-  average_variance2 = np.max(trace2)
-  
-  exponent =  euclidean(mean1, mean2) / (np.sqrt(average_variance1) + np.sqrt(average_variance2))
-  classic_dist = 1 - 2**(-exponent)
-
-  return classic_dist
+    delta_mu = mu1 - mu2
+    try:
+        sqrt_term = sqrtm(Sigma1) @ sqrtm(Sigma2)
+        distance = np.sqrt(
+            delta_mu.T @ delta_mu + np.trace(Sigma1 + Sigma2 - 2 * sqrt_term)
+        )
+        return np.real(
+            distance
+        )  # Return the real part to handle potential numerical imprecision
+    except ValueError:  # catches if the sqrt of a matrix is not positive semi-definite.
+        return np.inf
+    except (
+        np.linalg.LinAlgError
+    ):  # catches if the matrix is singular and the sqrt cannot be computed
+        return np.inf
 
 
+def classic_distance(mean1, cov1, mean2, cov2):
+    # Calculate Euclidean distance between means
+    trace1 = np.trace(cov1)
+    # num_variables1 = cov1.shape[0]  # Or covariance_matrix.shape[1] since it's square
+    # average_variance1 = trace1 / num_variables1
+    average_variance1 = np.max(trace1)
 
-def weighted_distance(mean1, cov1, mean2, cov2): 
-  # mean_weight is parameter to be tuned based on how much importance we want to give to the mean distance.
-  # When dimensionality is high, covariances tend to be more dissimilar and then the hellinger distance becomes higher even if the means are very close.
-  # In these cases we want to give more importance to the mean distance since it is the most informative information for interpreting transistions.
-  # when dimensoinality is low, it easier to have also similar covariances then the classic hellinger distance can be used.
+    trace2 = np.trace(cov2)
+    # num_variables2 = cov2.shape[0]  # Or covariance_matrix.shape[1] since it's square
+    # average_variance2 = trace2 / num_variables2
+    average_variance2 = np.max(trace2)
 
-  """
-  Calculates a weighted distance combining Hellinger distance and mean distance.
+    exponent = euclidean(mean1, mean2) / (
+        np.sqrt(average_variance1) + np.sqrt(average_variance2)
+    )
+    classic_dist = 1 - 2 ** (-exponent)
 
-  Args:
-    mean1: Mean of the first distribution.
-    cov1: Covariance matrix of the first distribution.
-    mean2: Mean of the second distribution.
-    cov2: Covariance matrix of the second distribution.
-    mean_weight: Weight for the mean distance (between 0 and 1).
+    return classic_dist
 
-  Returns:
-    Weighted distance.
-  """
 
-  # Calculate Hellinger distance (standard implementation)
-  h_dist = hellinger_distance(mean1, cov1, mean2, cov2)
+def weighted_distance(mean1, cov1, mean2, cov2):
+    # mean_weight is parameter to be tuned based on how much importance we want to give to the mean distance.
+    # When dimensionality is high, covariances tend to be more dissimilar and then the hellinger distance becomes higher even if the means are very close.
+    # In these cases we want to give more importance to the mean distance since it is the most informative information for interpreting transistions.
+    # when dimensoinality is low, it easier to have also similar covariances then the classic hellinger distance can be used.
 
-  c_dist = classic_dist(mean1, cov1, mean2, cov2)
+    """
+    Calculates a weighted distance combining Hellinger distance and mean distance.
 
-  # Calculate weighted distance
-  mean_weight = 1/8 *  cov1.shape[0] #adapt the mean_weight according to the number of dimensions of the vectors considered.
-  mean_weight = max(0, min(mean_weight, 1))  # Clip mean_weight between 0 and 1
-  weighted_dist = mean_weight * c_dist + (1 - mean_weight) * h_dist
+    Args:
+      mean1: Mean of the first distribution.
+      cov1: Covariance matrix of the first distribution.
+      mean2: Mean of the second distribution.
+      cov2: Covariance matrix of the second distribution.
+      mean_weight: Weight for the mean distance (between 0 and 1).
 
-  return weighted_dist
+    Returns:
+      Weighted distance.
+    """
+
+    # Calculate Hellinger distance (standard implementation)
+    h_dist = hellinger_distance(mean1, cov1, mean2, cov2)
+
+    c_dist = classic_distance(mean1, cov1, mean2, cov2)
+
+    # Calculate weighted distance
+    mean_weight = (
+        1 / 8 * cov1.shape[0]
+    )  # adapt the mean_weight according to the number of dimensions of the vectors considered.
+    mean_weight = max(0, min(mean_weight, 1))  # Clip mean_weight between 0 and 1
+    weighted_dist = mean_weight * c_dist + (1 - mean_weight) * h_dist
+
+    return weighted_dist
 
 
 def gaussian_overlapping_score(
@@ -504,13 +493,16 @@ def gaussian_overlapping_score(
         float: overlapping score between the two clusters
     """
     # dist = hellinger_distance(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov())
-    dist = weighted_distance(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov())
+    dist = weighted_distance(
+        cluster1.get_center(),
+        cluster1.get_cov(),
+        cluster2.get_center(),
+        cluster2.get_cov(),
+    )
     # dist = bhattacharyya_distance(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov())
     # dist = mmd(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov(), kernel='rbf', gamma=0.1)
     # dist = wasserstein_multivariate(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov())
-    return 1-dist
-
-
+    return 1 - dist
 
 
 def gmm_inertia(gmm, X):
