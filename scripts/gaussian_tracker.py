@@ -6,8 +6,10 @@ from scripts.gaussian_core import Macrocluster
 from scripts.gaussian_utils_dc import (
     bhattacharyya_distance,
     hellinger_distance,
+    weighted_distance,
     mmd,
     wasserstein_multivariate,
+    classic_dist
 )
 
 # MEC algorithm for tracking
@@ -57,7 +59,9 @@ def MEC(
             cprod_cov = clusters_prod[j].get_cov()
             cprod_center = clusters_prod[j].get_center()
 
-            dist = hellinger_distance(cref_center, cref_cov, cprod_center, cprod_cov)
+            h_dist = hellinger_distance(cref_center, cref_cov, cprod_center, cprod_cov)
+            c_score = classic_dist(cref_center, cref_cov, cprod_center, cprod_cov)
+            dist = weighted_distance(cref_center, cref_cov, cprod_center, cprod_cov)
             # dist = bhattacharyya_distance(cref_center, cref_cov, cprod_center, cprod_cov)
             # dist = mmd(cref_center, cref_cov, cprod_center, cprod_cov)
 
@@ -65,7 +69,7 @@ def MEC(
                 print(f"ref{clusters_ref[i].get_id()} - center: {cref_center}")
                 print(f"prod{j} - center: {cprod_center}")
                 print(
-                    f"hellinger distance: {dist}",
+                    f"hellinger dist: {h_dist} ---- classic dist: {c_score} ----> final dist: {dist}",
                 )
                 print()
 

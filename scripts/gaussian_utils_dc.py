@@ -6,6 +6,7 @@ from scripts.utils import array_to_dict
 from scripts.gaussian_core import Macrocluster, Snapshot
 from sklearn.base import BaseEstimator
 from scipy.stats import wasserstein_distance
+from scipy.spatial.distance import euclidean
 
 def compute_min_distance(x, microclusters):
     """function to compute the minimum distance from a point to any microcluster
@@ -321,10 +322,14 @@ def hellinger_distance(mean1, cov1, mean2, cov2):
     avg_cov = (cov1 + cov2) / 2
     det_cov_sum = np.linalg.det(avg_cov)
 
+    if det_cov_sum == 0:
+        det_cov_sum = 1e-10  # Set a small value to avoid division by zero
+
     diff_mean = np.array(mean1) - np.array(mean2)  # Ensure numpy array for operations
     inv_avg_cov = np.linalg.inv(avg_cov)
 
     exponent = -0.125 * diff_mean.T @ inv_avg_cov @ diff_mean
+
 
     term1 = (2 * np.sqrt(det_cov1) * np.sqrt(det_cov2)) / det_cov_sum
     term2 = np.exp(exponent)
@@ -432,6 +437,57 @@ def wasserstein_multivariate(mean1, cov1, mean2, cov2, approximate=True, n_proje
 
     else:
       return np.nan # Return NaN if some error occurs
+    
+def classic_dist(mean1, cov1, mean2, cov2):
+# Calculate Euclidean distance between means
+  trace1 = np.trace(cov1)
+  #num_variables1 = cov1.shape[0]  # Or covariance_matrix.shape[1] since it's square
+  #average_variance1 = trace1 / num_variables1
+  average_variance1 = np.max(trace1)
+
+  trace2 = np.trace(cov2)
+  #num_variables2 = cov2.shape[0]  # Or covariance_matrix.shape[1] since it's square
+  #average_variance2 = trace2 / num_variables2
+  average_variance2 = np.max(trace2)
+  
+  exponent =  euclidean(mean1, mean2) / (np.sqrt(average_variance1) + np.sqrt(average_variance2))
+  classic_dist = 1 - 2**(-exponent)
+
+  return classic_dist
+
+
+
+def weighted_distance(mean1, cov1, mean2, cov2): 
+  # mean_weight is parameter to be tuned based on how much importance we want to give to the mean distance.
+  # When dimensionality is high, covariances tend to be more dissimilar and then the hellinger distance becomes higher even if the means are very close.
+  # In these cases we want to give more importance to the mean distance since it is the most informative information for interpreting transistions.
+  # when dimensoinality is low, it easier to have also similar covariances then the classic hellinger distance can be used.
+
+  """
+  Calculates a weighted distance combining Hellinger distance and mean distance.
+
+  Args:
+    mean1: Mean of the first distribution.
+    cov1: Covariance matrix of the first distribution.
+    mean2: Mean of the second distribution.
+    cov2: Covariance matrix of the second distribution.
+    mean_weight: Weight for the mean distance (between 0 and 1).
+
+  Returns:
+    Weighted distance.
+  """
+
+  # Calculate Hellinger distance (standard implementation)
+  h_dist = hellinger_distance(mean1, cov1, mean2, cov2)
+
+  c_dist = classic_dist(mean1, cov1, mean2, cov2)
+
+  # Calculate weighted distance
+  mean_weight = 1/8 *  cov1.shape[0] #adapt the mean_weight according to the number of dimensions of the vectors considered.
+  mean_weight = max(0, min(mean_weight, 1))  # Clip mean_weight between 0 and 1
+  weighted_dist = mean_weight * c_dist + (1 - mean_weight) * h_dist
+
+  return weighted_dist
 
 
 def gaussian_overlapping_score(
@@ -447,10 +503,11 @@ def gaussian_overlapping_score(
     Returns:
         float: overlapping score between the two clusters
     """
-    dist = hellinger_distance(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov())
-    #dist = bhattacharyya_distance(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov())
-    #dist = mmd(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov(), kernel='rbf', gamma=0.1)
-    #dist = wasserstein_multivariate(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov())
+    # dist = hellinger_distance(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov())
+    dist = weighted_distance(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov())
+    # dist = bhattacharyya_distance(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov())
+    # dist = mmd(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov(), kernel='rbf', gamma=0.1)
+    # dist = wasserstein_multivariate(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov())
     return 1-dist
 
 
