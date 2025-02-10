@@ -4,7 +4,7 @@ from collections import defaultdict
 
 from sklearn.mixture import GaussianMixture
 from sklearn.metrics import silhouette_score
-from scripts.gaussian_utils_dc import gmm_inertia
+from scripts.gaussian.utils_dc import gmm_inertia
 from scripts.core import CluStreamMicroCluster
 
 

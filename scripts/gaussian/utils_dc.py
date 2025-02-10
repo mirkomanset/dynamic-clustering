@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import multivariate_normal
 from scripts.utils import array_to_dict
-from scripts.gaussian_core import Macrocluster, Snapshot
+from scripts.gaussian.core import Macrocluster, Snapshot
 from sklearn.base import BaseEstimator
 from scipy.stats import wasserstein_distance
 from scipy.spatial.distance import euclidean

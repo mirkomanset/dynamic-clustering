@@ -7,9 +7,9 @@ import os
 
 
 from river import stream, base
-from scripts.gaussian_core import Snapshot, Macrocluster
-from scripts.gaussian_streaming_clusterer import CluStreamMicroCluster
-from scripts.gaussian_utils_dc import (
+from scripts.gaussian.core import Snapshot, Macrocluster
+from scripts.gaussian.streaming_clusterer import CluStreamMicroCluster
+from scripts.gaussian.utils_dc import (
     compute_min_distance,
     overlapping_score,
     find_closest_cluster,
@@ -24,7 +24,7 @@ from scripts.utils import (
     sublist_present,
     clean_directory,
 )
-from scripts.gaussian_tracker import MEC
+from scripts.gaussian.tracker import MEC
 
 from sklearn.decomposition import PCA
 # from umap import UMAP
