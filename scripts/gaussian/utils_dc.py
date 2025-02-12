@@ -308,10 +308,12 @@ def hellinger_distance(
 
     exponent = -0.125 * diff_mean.T @ inv_avg_cov @ diff_mean
 
+    ## change here
+
     term1 = (2 * np.sqrt(det_cov1) * np.sqrt(det_cov2)) / det_cov_sum
     term2 = np.exp(exponent)
 
-    value_inside_sqrt = 1 - np.sqrt(term1 * term2)
+    value_inside_sqrt = 1 - np.sqrt(cov1.shape[0] * term1 * term2) # Multiply for the size of the data to mitigate the effect of different covariances.
     clipped_value = np.clip(value_inside_sqrt, 0, 1)  # Clip to [0, 1]
 
     return np.sqrt(clipped_value)
@@ -420,7 +422,7 @@ def wasserstein_distance(
         return np.inf
 
 
-def classic_distance(
+def custom_distance(
     mean1: list[float], cov1: np.ndarray, mean2: list[float], cov2: np.ndarray
 ) -> float:
     """Function to compute the distance between two normal distributions similarly to the custom score definition.
@@ -434,7 +436,7 @@ def classic_distance(
       cov2: Covariance matrix of the second distribution.
 
     Returns:
-        Classic distance.
+        custom distance.
     """
     # Calculate Euclidean distance between means
     trace1 = np.trace(cov1)
@@ -452,9 +454,9 @@ def classic_distance(
     exponent = euclidean(mean1, mean2) / (
         np.sqrt(average_variance1) + np.sqrt(average_variance2)
     )
-    classic_dist = 1 - 2 ** (-exponent)
+    custom_dist = 1 - 2 ** (-exponent)
 
-    return classic_dist
+    return custom_dist
 
 
 def weighted_distance(
@@ -463,10 +465,10 @@ def weighted_distance(
     # mean_weight is parameter to be tuned based on how much importance we want to give to the mean distance.
     # When dimensionality is high, covariances tend to be more dissimilar and then the hellinger distance becomes higher even if the means are very close.
     # In these cases we want to give more importance to the mean distance since it is the most informative information for interpreting transistions.
-    # when dimensoinality is low, it easier to have also similar covariances then the classic hellinger distance can be used.
+    # when dimensoinality is low, it easier to have also similar covariances then the hellinger distance can be used.
 
     """
-    Calculates a weighted distance combining Hellinger distance and mean distance.
+    Calculates a weighted distance combining Hellinger distance and custom distance.
 
     Args:
       mean1: Mean of the first distribution.
@@ -482,7 +484,7 @@ def weighted_distance(
     # Calculate Hellinger distance (standard implementation)
     h_dist = hellinger_distance(mean1, cov1, mean2, cov2)
 
-    c_dist = classic_distance(mean1, cov1, mean2, cov2)
+    c_dist = custom_distance(mean1, cov1, mean2, cov2)
 
     # Calculate weighted distance
     mean_weight = (

@@ -165,6 +165,7 @@ class CluStream(base.Clusterer):
             labels = self._gaumix_mc.predict(mc_centers_array)
 
             # Compute the silhouette
+            # An alternative could be use some other metrics such as BIC, AIC or others.
             s = silhouette_score(mc_centers_array, labels, metric="euclidean")
             sil.append(s)
 

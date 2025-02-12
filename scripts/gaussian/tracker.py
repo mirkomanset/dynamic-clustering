@@ -8,7 +8,7 @@ from scripts.gaussian.utils_dc import (
     weighted_distance,
     mmd,
     wasserstein_distance,
-    classic_distance
+    custom_distance
 )
 
 # MEC algorithm for tracking
@@ -59,7 +59,7 @@ def MEC(
             cprod_center = clusters_prod[j].get_center()
 
             h_dist = hellinger_distance(cref_center, cref_cov, cprod_center, cprod_cov)
-            c_score = classic_distance(cref_center, cref_cov, cprod_center, cprod_cov)
+            c_score = custom_distance(cref_center, cref_cov, cprod_center, cprod_cov)
             dist = weighted_distance(cref_center, cref_cov, cprod_center, cprod_cov)
             # dist = bhattacharyya_distance(cref_center, cref_cov, cprod_center, cprod_cov)
             # dist = mmd(cref_center, cref_cov, cprod_center, cprod_cov)
@@ -68,7 +68,7 @@ def MEC(
                 print(f"ref{clusters_ref[i].get_id()} - center: {cref_center}")
                 print(f"prod{j} - center: {cprod_center}")
                 print(
-                    f"hellinger dist: {h_dist} ---- classic dist: {c_score} ----> final dist: {dist}",
+                    f"hellinger dist: {h_dist} ---- custom dist: {c_score} ----> final dist: {dist}",
                 )
                 print()
 
