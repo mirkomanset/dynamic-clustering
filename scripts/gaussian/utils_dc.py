@@ -6,6 +6,7 @@ from scripts.gaussian.core import Macrocluster, Snapshot
 from sklearn.base import BaseEstimator
 from scipy.spatial.distance import euclidean
 from scipy.linalg import sqrtm
+from scipy.stats import multivariate_normal, chi2
 
 
 def compute_min_distance(x, microclusters):
@@ -510,15 +511,16 @@ def gaussian_overlapping_score(
         float: overlapping score between the two clusters
     """
     # dist = hellinger_distance(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov())
-    dist = weighted_distance(
-        cluster1.get_center(),
-        cluster1.get_cov(),
-        cluster2.get_center(),
-        cluster2.get_cov(),
-    )
+    # dist = weighted_distance(
+    #     cluster1.get_center(),
+    #     cluster1.get_cov(),
+    #     cluster2.get_center(),
+    #     cluster2.get_cov(),
+    # )
     # dist = bhattacharyya_distance(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov())
     # dist = mmd(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov(), kernel='rbf', gamma=0.1)
     # dist = wasserstein_distance(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov())
+    dist = 1 - compute_overlapping(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov())
     return 1 - dist
 
 
@@ -535,3 +537,53 @@ def gmm_inertia(gmm: BaseEstimator, X: np.ndarray) -> float:
         The "inertia" value.
     """
     return -gmm.score_samples(X).sum()
+
+def generate_points(mean: list[float], cov: np.ndarray, n_points=100000) -> np.ndarray:
+    np.random.seed(42)
+    points = np.random.multivariate_normal(mean=mean, cov=cov, size=n_points)
+    return points
+
+def is_inside_hyperellipsoid(point, mean, cov, alpha):
+    """Checks if a point is inside the confidence hyperellipsoid."""
+
+    n_dim = len(mean)
+    df = n_dim
+
+    # Correct usage of alpha:
+    chi2_val = chi2.ppf(alpha, df)  # Use alpha directly
+
+    # Calculate the Mahalanobis distance (more efficient way):
+    diff = np.array(point) - np.array(mean)  # Ensure numpy arrays
+    mahal_dist_sq = diff @ np.linalg.inv(cov) @ diff  # Simplified with @ operator
+
+    return mahal_dist_sq <= chi2_val
+
+
+def compute_overlapping(mean1: list[float], cov1: np.ndarray, mean2: list[float], cov2: np.ndarray, alpha:float = 0.9, n_points_per_dimension = 100) -> float:
+    if alpha <= 0 or alpha >= 1:
+        raise ValueError("Alpha should be in the range (0, 1).")
+    else:
+        n_dim = len(mean1)
+        n_points = n_dim * n_points_per_dimension
+        
+        count1 = 0
+        count2 = 0
+        count_intersection = 0
+
+        points1 = generate_points(mean1, cov1, n_points)
+        points2 = generate_points(mean1, cov1, n_points)
+        
+        for point in points1:
+            if is_inside_hyperellipsoid(point, mean1, cov1, alpha):
+                count1 += 1
+                if is_inside_hyperellipsoid(point, mean2, cov2, alpha):
+                    count_intersection += 1
+
+        for point in points2:
+            if is_inside_hyperellipsoid(point, mean2, cov2, alpha):
+                count2 += 1
+                if is_inside_hyperellipsoid(point, mean1, cov1, alpha):
+                    count_intersection += 1    
+        return count_intersection / (count1 + count2)
+    
+
