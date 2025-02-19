@@ -6,34 +6,60 @@ import os
 
 
 def get_colors():
-    """Generate a list of distinct colors.
-
-    Returns:
-        list[str]: list of distinct colors.
-    """
+    """Returns a list of 50 predefined hex color codes."""
     colors = [
-        "rosybrown",
-        "goldenrod",
-        "mediumturquoise",
-        "darkslateblue",
-        "darkred",
-        "darkkhaki",
-        "teal",
-        "mediumorchid",
-        "linen",
-        "lightgreen",
-        "slategray",
-        "lightpink",
-        "indianred",
-        "gold",
-        "lightcyan",
-        "blueviolet",
-        "coral",
-        "yellow",
-        "powderblue",
-        "fuchsia",
+        "#0000FF",  # Blue
+        "#FF0000",  # Red
+        "#008000",  # Green
+        "#FFFF00",  # Yellow
+        "#FFA500",  # Orange
+        "#800080",  # Purple
+        "#00FFFF",  # Cyan
+        "#A0522D",  # Sienna
+        "#FFC0CB",  # Pink
+        "#808080",  # Gray
+        "#40E0D0",  # Turquoise
+        "#FF69B4",  # Hot Pink
+        "#90EE90",  # Light Green
+        "#ADFF2F",  # Green Yellow
+        "#FFD700",  # Gold
+        "#FFB347",  # Light Orange
+        "#DA70D6",  # Orchid
+        "#D3D3D3",  # Light Gray
+        "#00BFFF",  # Deep Sky Blue
+        "#FF4500",  # Orange Red
+        "#98FB98",  # Pale Green
+        "#F0E68C",  # Khaki
+        "#EE82EE",  # Violet
+        "#AFEEEE",  # Pale Turquoise
+        "#BC8F8F",  # Rosy Brown
+        "#CD5C5C",  # Indian Red
+        "#F4A460",  # Sandy Brown
+        "#FF6347",  # Tomato
+        "#ADD8E6",  # Light Blue
+        "#E0FFFF",  # Light Cyan
+        "#F08080",  # Light Coral
+        "#FAF0E6",  # Floral White
+        "#778899",  # Light Slate Gray
+        "#B0C4DE",  # Light Steel Blue
+        "#FFFFE0",  # Light Yellow
+        "#9ACD32",  # Yellow Green
+        "#8FBC8F",  # Dark Sea Green
+        "#4682B4",  # Steel Blue
+        "#6A5ACD",  # Slate Blue
+        "#708090",  # Slate Gray
+        "#008B8B",  # Dark Cyan
+        "#B8860B",  # Dark Goldenrod
+        "#A9A9A9",  # Dark Gray
+        "#006400",  # Dark Green
+        "#BDB76B",  # Dark Khaki
+        "#FF8C00",  # Dark Orange
+        "#9932CC",  # Dark Orchid
+        "#8B0000",  # Dark Red
+        "#E9967A",  # Dark Salmon
+        "#8F4513",  # SaddleBrown
+        "#A4522D",  # Sienna
     ]
-    print(f"number of colors defined: {len(colors)}")
     return colors
 
 
@@ -64,29 +90,45 @@ def extract_integer(s):
         return None
 
 
-def find_missing_positive(nums):
-    """Function to find the first missing positive number.
-    It is used to assign the smaller ID to new appearring cluster.
-    Useful when a cluster disappears and then a new one appears: we can give to the new one the ID of the old one.
-    Avoid to go out of colors.
+# def assign_id(nums):
+#     """Function to find the first missing positive number.
+#     It is used to assign the smaller ID to new appearring cluster.
+#     Useful when a cluster disappears and then a new one appears: we can give to the new one the ID of the old one.
+#     Avoid to go out of colors.
+
+#     Args:
+#         nums (list[int]): list of numbers
+
+#     Returns:
+#         int: first positive number not present in the list
+#     """
+#     n = len(nums)
+#     # Mark visited numbers by negating them
+#     for i in range(n):
+#         num = abs(nums[i])
+#         if 1 <= num <= n:
+#             nums[num - 1] = -abs(nums[num - 1])
+#     # Find the first positive number
+#     for i in range(n):
+#         if nums[i] > 0:
+#             return i + 1
+#     return n + 1
+
+
+def assign_id(nums):
+    """
+    Finds the maximum value in the given list and returns 1 plus that value.
 
     Args:
-        nums (list[int]): list of numbers
+      nums: A list of numbers.
 
     Returns:
-        int: first positive number not present in the list
+      The maximum value in the list plus 1.
     """
-    n = len(nums)
-    # Mark visited numbers by negating them
-    for i in range(n):
-        num = abs(nums[i])
-        if 1 <= num <= n:
-            nums[num - 1] = -abs(nums[num - 1])
-    # Find the first positive number
-    for i in range(n):
-        if nums[i] > 0:
-            return i + 1
-    return n + 1
+    if not nums:
+        return 0  # If the list is empty, return 1
+
+    return max(nums) + 1
 
 
 def count_occurrences_in_sublists(element, list_of_lists):

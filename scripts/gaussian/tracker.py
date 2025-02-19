@@ -10,7 +10,7 @@ from scripts.gaussian.utils_dc import (
     mmd,
     wasserstein_distance,
     custom_distance,
-    compute_overlapping
+    compute_overlapping,
 )
 
 # MEC algorithm for tracking
@@ -121,14 +121,16 @@ def MEC(
 # Must specify also the confidence alpha: larger alpha -> smaller clusters -> more difficult overlapping.
 # TGMC: Tracking Gaussian Mixture Clusters.
 
+
 def GMCT(
     clusters_ref: list[Macrocluster],
     clusters_prod: list[Macrocluster],
-    overlapping_factor: float = 1,
     print_statistics=False,
     print_results=False,
     print_graph=False,
-    alpha= 0.9
+    alpha=0.9,
+    epsilon=0,
+    n_points_per_dimension=500,
 ) -> nx.Graph:
     """TGMC algorithm for tracking macroclusters in two different timestamps"""
     n_clusters_ref = len(clusters_ref)
@@ -143,39 +145,45 @@ def GMCT(
         c_name_ref = "ref" + str(clusters_ref[i].get_id())
         G.add_node(c_name_ref, bipartite=0)
         active_clusters_ref.append(clusters_ref[i].get_id())
-        color_map.append("lightskyblue")
+        color_map.append("limegreen")
 
     for i in range(n_clusters_prod):
         c_name_prod = "prod" + str(i)
         G.add_node(c_name_prod, bipartite=1)
         active_clusters_prod.append(i)
-        color_map.append("limegreen")
+        color_map.append("lightskyblue")
 
     # print(f'Active clusters in reference: {list(set(active_clusters_ref))} - Active clusters in prod: {list(set(active_clusters_prod))}')
     print()
 
     centers_distances = {}
     cov_difference = {}
-    scores ={}
+    scores = {}
 
     for i in range(n_clusters_ref):
         cref_cov = clusters_ref[i].get_cov()
         cref_center = clusters_ref[i].get_center()
+        c_name_ref = "ref" + str(clusters_ref[i].get_id())
 
         for j in range(n_clusters_prod):
-
-            c_name_ref = "ref" + str(clusters_ref[i].get_id())
             c_name_prod = "prod" + str(j)
-            
+
             cprod_cov = clusters_prod[j].get_cov()
             cprod_center = clusters_prod[j].get_center()
 
-            overlapping_score = compute_overlapping(cref_center, cref_cov, cprod_center, cprod_cov, alpha=alpha)
+            overlapping_score = compute_overlapping(
+                cref_center,
+                cref_cov,
+                cprod_center,
+                cprod_cov,
+                alpha=alpha,
+                n_points_per_dimension=n_points_per_dimension,
+            )
             scores[f"{c_name_ref}{c_name_prod}"] = overlapping_score
 
             if print_statistics:
-                print(f"ref{clusters_ref[i].get_id()} - center: {cref_center}")
-                print(f"prod{j} - center: {cprod_center}")
+                print(f"{c_name_ref} - center: {cref_center}")
+                print(f"{c_name_prod} - center: {cprod_center}")
                 print(
                     f"overlapping score: {overlapping_score}",
                 )
@@ -183,12 +191,13 @@ def GMCT(
 
             if (
                 overlapping_score
-                > overlapping_factor
-                * (0.5)  # TODO change this to adjust the overlapping criteria
+                > epsilon  # TODO change this to adjust the overlapping criteria
             ):
                 G.add_edge(c_name_ref, c_name_prod)
 
-                centers_distances[f"{c_name_ref}{c_name_prod}"] = np.linalg.norm(np.asarray(cref_center)-np.asarray(cprod_center))
+                centers_distances[f"{c_name_ref}{c_name_prod}"] = np.linalg.norm(
+                    np.asarray(cref_center) - np.asarray(cprod_center)
+                )
                 cov_difference[f"{c_name_ref}{c_name_prod}"] = cref_cov - cprod_cov
 
     if print_graph:

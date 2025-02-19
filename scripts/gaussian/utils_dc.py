@@ -314,7 +314,9 @@ def hellinger_distance(
     term1 = (2 * np.sqrt(det_cov1) * np.sqrt(det_cov2)) / det_cov_sum
     term2 = np.exp(exponent)
 
-    value_inside_sqrt = 1 - np.sqrt(cov1.shape[0] * term1 * term2) # Multiply for the size of the data to mitigate the effect of different covariances.
+    value_inside_sqrt = (
+        1 - np.sqrt(cov1.shape[0] * term1 * term2)
+    )  # Multiply for the size of the data to mitigate the effect of different covariances.
     clipped_value = np.clip(value_inside_sqrt, 0, 1)  # Clip to [0, 1]
 
     return np.sqrt(clipped_value)
@@ -520,7 +522,12 @@ def gaussian_overlapping_score(
     # dist = bhattacharyya_distance(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov())
     # dist = mmd(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov(), kernel='rbf', gamma=0.1)
     # dist = wasserstein_distance(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov())
-    dist = 1 - compute_overlapping(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov())
+    dist = 1 - compute_overlapping(
+        cluster1.get_center(),
+        cluster1.get_cov(),
+        cluster2.get_center(),
+        cluster2.get_cov(),
+    )
     return 1 - dist
 
 
@@ -538,10 +545,12 @@ def gmm_inertia(gmm: BaseEstimator, X: np.ndarray) -> float:
     """
     return -gmm.score_samples(X).sum()
 
+
 def generate_points(mean: list[float], cov: np.ndarray, n_points=100000) -> np.ndarray:
     np.random.seed(42)
     points = np.random.multivariate_normal(mean=mean, cov=cov, size=n_points)
     return points
+
 
 def is_inside_hyperellipsoid(point, mean, cov, alpha):
     """Checks if a point is inside the confidence hyperellipsoid."""
@@ -550,7 +559,7 @@ def is_inside_hyperellipsoid(point, mean, cov, alpha):
     df = n_dim
 
     # Correct usage of alpha:
-    chi2_val = chi2.ppf(alpha, df)  # Use alpha directly
+    chi2_val = chi2.ppf(1 - alpha, df)  # Use alpha directly
 
     # Calculate the Mahalanobis distance (more efficient way):
     diff = np.array(point) - np.array(mean)  # Ensure numpy arrays
@@ -559,20 +568,27 @@ def is_inside_hyperellipsoid(point, mean, cov, alpha):
     return mahal_dist_sq <= chi2_val
 
 
-def compute_overlapping(mean1: list[float], cov1: np.ndarray, mean2: list[float], cov2: np.ndarray, alpha:float = 0.9, n_points_per_dimension = 100) -> float:
+def compute_overlapping(
+    mean1: list[float],
+    cov1: np.ndarray,
+    mean2: list[float],
+    cov2: np.ndarray,
+    alpha: float = 0.9,
+    n_points_per_dimension=200,
+) -> float:
     if alpha <= 0 or alpha >= 1:
         raise ValueError("Alpha should be in the range (0, 1).")
     else:
         n_dim = len(mean1)
         n_points = n_dim * n_points_per_dimension
-        
+
         count1 = 0
         count2 = 0
         count_intersection = 0
 
         points1 = generate_points(mean1, cov1, n_points)
         points2 = generate_points(mean1, cov1, n_points)
-        
+
         for point in points1:
             if is_inside_hyperellipsoid(point, mean1, cov1, alpha):
                 count1 += 1
@@ -583,7 +599,5 @@ def compute_overlapping(mean1: list[float], cov1: np.ndarray, mean2: list[float]
             if is_inside_hyperellipsoid(point, mean2, cov2, alpha):
                 count2 += 1
                 if is_inside_hyperellipsoid(point, mean1, cov1, alpha):
-                    count_intersection += 1    
+                    count_intersection += 1
         return count_intersection / (count1 + count2)
-    
-
