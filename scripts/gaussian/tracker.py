@@ -4,13 +4,13 @@ import numpy as np
 
 from scripts.gaussian.core import Macrocluster
 from scripts.gaussian.utils_dc import (
-    bhattacharyya_distance,
     hellinger_distance,
     weighted_distance,
-    mmd,
-    wasserstein_distance,
     custom_distance,
-    compute_overlapping,
+    hellinger_overlapping_score,
+    custom_overlapping_score,
+    weighted_overlapping_score,
+    montecarlo_overlapping_score,
 )
 
 # MEC algorithm for tracking
@@ -172,7 +172,12 @@ def GMCT(
             cprod_cov = clusters_prod[j].get_cov()
             cprod_center = clusters_prod[j].get_center()
 
-            overlapping_score = compute_overlapping(
+            # Here we can use other overlapping scores such as:
+            # overlapping_score = hellinger_overlapping_score(cref_center, cref_cov, cprod_center, cprod_cov)
+            # overlapping_score = custom_overlapping_score(cref_center, cref_cov, cprod_center, cprod_cov)
+            # overlapping_score = weighted_overlapping_score(cref_center, cref_cov, cprod_center, cprod_cov)
+
+            overlapping_score = montecarlo_overlapping_score(
                 cref_center,
                 cref_cov,
                 cprod_center,

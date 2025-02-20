@@ -476,7 +476,7 @@ def is_inside_hyperellipsoid(point, mean, cov, alpha):
     return mahal_dist_sq <= chi2_val
 
 
-def compute_overlapping(
+def montecarlo_overlapping_score(
     mean1: list[float] | np.ndarray,
     cov1: np.ndarray,
     mean2: list[float] | np.ndarray,
