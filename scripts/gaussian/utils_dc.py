@@ -151,7 +151,10 @@ def get_reduced_snapshot_image(
 
 
 def bhattacharyya_distance(
-    mean1: list[float] | np.ndarray, cov1: np.ndarray, mean2: list[float] | np.ndarray, cov2: np.ndarray
+    mean1: list[float] | np.ndarray,
+    cov1: np.ndarray,
+    mean2: list[float] | np.ndarray,
+    cov2: np.ndarray,
 ) -> float:
     """
     Calculates the Bhattacharyya distance between two multivariate normal distributions.
@@ -183,7 +186,10 @@ def bhattacharyya_distance(
 
 
 def hellinger_distance(
-    mean1: list[float] | np.ndarray, cov1: np.ndarray, mean2: list[float] | np.ndarray, cov2: np.ndarray
+    mean1: list[float] | np.ndarray,
+    cov1: np.ndarray,
+    mean2: list[float] | np.ndarray,
+    cov2: np.ndarray,
 ) -> float:
     """
     Calculates the Hellinger distance between two N-dimensional multivariate
@@ -224,76 +230,11 @@ def hellinger_distance(
     return np.sqrt(clipped_value)
 
 
-def mmd(
+def wasserstein_distance(
     mean1: list[float] | np.ndarray,
     cov1: np.ndarray,
     mean2: list[float] | np.ndarray,
     cov2: np.ndarray,
-    kernel="rbf",
-    gamma=1.0,
-) -> float:
-    """
-    Calculates the MMD between two multivariate normal distributions in n dimensions.
-
-    Args:
-        mean1: Mean of the first distribution (numpy array of size n).
-        cov1: Covariance matrix of the first distribution (nxn numpy array).
-        mean2: Mean of the second distribution (numpy array of size n).
-        cov2: Covariance matrix of the second distribution (nxn numpy array).
-        kernel: The kernel to use ('linear' or 'rbf'). Default: 'rbf'
-        gamma: Bandwidth parameter for the RBF kernel. Only used if kernel='rbf'.
-
-    Returns:
-        The MMD between the two distributions.
-    """
-
-    # Convert to NumPy arrays if they are lists
-    mean1 = np.array(mean1) if isinstance(mean1, list) else mean1
-    mean2 = np.array(mean2) if isinstance(mean2, list) else mean2
-
-    if kernel == "rbf":  # Gaussian kernel
-        k_xx = np.exp(
-            -gamma
-            * (mean1 - mean1).T
-            @ np.linalg.inv((cov1 + cov1) / 2)
-            @ (mean1 - mean1)
-            / 2
-        ) + np.exp(
-            -gamma
-            * (mean1 - mean1).T
-            @ np.linalg.inv((cov1 + cov1) / 2)
-            @ (mean1 - mean1)
-            / 2
-        )
-        k_yy = np.exp(
-            -gamma
-            * (mean2 - mean2).T
-            @ np.linalg.inv((cov2 + cov2) / 2)
-            @ (mean2 - mean2)
-            / 2
-        ) + np.exp(
-            -gamma
-            * (mean2 - mean2).T
-            @ np.linalg.inv((cov2 + cov2) / 2)
-            @ (mean2 - mean2)
-            / 2
-        )
-        k_xy = 2 * np.exp(
-            -gamma
-            * (mean1 - mean2).T
-            @ np.linalg.inv((cov1 + cov2) / 2)
-            @ (mean1 - mean2)
-            / 2
-        )
-        mmd2 = k_xx + k_yy - k_xy
-        return np.sqrt(mmd2) if mmd2 > 0 else 0
-
-    else:
-        raise ValueError("Invalid kernel. Choose 'linear' or 'rbf'.")
-
-
-def wasserstein_distance(
-    mean1: list[float] | np.ndarray, cov1: np.ndarray, mean2: list[float] | np.ndarray, cov2: np.ndarray
 ) -> float:
     """
     Calculates the Wasserstein-2 distance between two multivariate Gaussian distributions.
@@ -329,7 +270,10 @@ def wasserstein_distance(
 
 
 def custom_distance(
-    mean1: list[float] | np.ndarray, cov1: np.ndarray, mean2: list[float] | np.ndarray, cov2: np.ndarray
+    mean1: list[float] | np.ndarray,
+    cov1: np.ndarray,
+    mean2: list[float] | np.ndarray,
+    cov2: np.ndarray,
 ) -> float:
     """Function to compute the distance between two normal distributions similarly to the custom score definition.
     Instead of using (center, radius), we use (mean, f(variance)). In this specific implementation we use the maximum
@@ -370,7 +314,10 @@ def custom_distance(
 
 
 def weighted_distance(
-    mean1: list[float] | np.ndarray, cov1: np.ndarray, mean2: list[float] | np.ndarray, cov2: np.ndarray
+    mean1: list[float] | np.ndarray,
+    cov1: np.ndarray,
+    mean2: list[float] | np.ndarray,
+    cov2: np.ndarray,
 ) -> float:
     # mean_weight is parameter to be tuned based on how much importance we want to give to the mean distance.
     # When dimensionality is high, covariances tend to be more dissimilar and then the hellinger distance becomes higher even if the means are very close.
@@ -406,9 +353,7 @@ def weighted_distance(
     return weighted_dist
 
 
-def gaussian_overlapping_score(
-    cluster1: Macrocluster, cluster2: Macrocluster, overlapping_factor: float = 1
-) -> float:
+def gaussian_overlapping_score(cluster1: Macrocluster, cluster2: Macrocluster) -> float:
     """Function to compute the overlapping score between two clusters.
 
     Args:

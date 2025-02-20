@@ -10,17 +10,14 @@ from river import stream, base
 from scripts.gaussian.core import Snapshot, Macrocluster, CluStreamMicroCluster
 from scripts.gaussian.utils_dc import (
     compute_min_distance,
-    overlapping_score,
     find_closest_cluster,
     get_reduced_snapshot_image,
     gaussian_overlapping_score,
-    compute_overlapping,
 )
 
 from scripts.utils import (
     extract_integer,
     count_occurrences_in_sublists,
-    assign_id,
     sublist_present,
     clean_directory,
 )
@@ -220,7 +217,7 @@ class DynamicClusterer:
             alpha=self.alpha,
             epsilon=self.epsilon,
             n_points_per_dimension=self.n_points_per_dimension,
-            stop_mode=self.stop_mode
+            stop_mode=self.stop_mode,
         )
 
         # Find mapping between current clustering and new clustering
