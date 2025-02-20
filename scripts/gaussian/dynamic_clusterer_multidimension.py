@@ -12,7 +12,6 @@ from scripts.gaussian.utils_dc import (
     compute_min_distance,
     find_closest_cluster,
     get_reduced_snapshot_image,
-    gaussian_overlapping_score,
 )
 
 from scripts.utils import (
@@ -202,7 +201,7 @@ class DynamicClusterer:
         # Prod data is cleaned
         self.prod = []
 
-        # Track transitions performed by MEC
+        # Track transitions performed by MEC or GMCT
         # We compare the new clustering with the actual situation
 
         new_clusters = []

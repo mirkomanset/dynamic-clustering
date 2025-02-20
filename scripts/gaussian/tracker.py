@@ -1,12 +1,10 @@
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
+from scipy.spatial.distance import euclidean
 
 from scripts.gaussian.core import Macrocluster
 from scripts.gaussian.utils_dc import (
-    hellinger_distance,
-    weighted_distance,
-    custom_distance,
     hellinger_overlapping_score,
     custom_overlapping_score,
     weighted_overlapping_score,
@@ -20,10 +18,10 @@ from scripts.gaussian.utils_dc import (
 def MEC(
     clusters_ref: list[Macrocluster],
     clusters_prod: list[Macrocluster],
-    overlapping_factor: float = 1,
-    print_statistics=False,
-    print_results=False,
-    print_graph=False,
+    print_statistics: bool = False,
+    print_results: bool = False,
+    print_graph: bool = False,
+    epsilon: float = 0.5,
 ) -> nx.Graph:
     """MEC algorithm for tracking macroclusters in two different timestamps"""
     n_clusters_ref = len(clusters_ref)
@@ -38,13 +36,13 @@ def MEC(
         c_name_ref = "ref" + str(clusters_ref[i].get_id())
         G.add_node(c_name_ref, bipartite=0)
         active_clusters_ref.append(clusters_ref[i].get_id())
-        color_map.append("lightskyblue")
+        color_map.append("limegreen")
 
     for i in range(n_clusters_prod):
         c_name_prod = "prod" + str(i)
         G.add_node(c_name_prod, bipartite=1)
         active_clusters_prod.append(i)
-        color_map.append("limegreen")
+        color_map.append("lightskyblue")
 
     # print(f'Active clusters in reference: {list(set(active_clusters_ref))} - Active clusters in prod: {list(set(active_clusters_prod))}')
     print()
@@ -60,30 +58,28 @@ def MEC(
             cprod_cov = clusters_prod[j].get_cov()
             cprod_center = clusters_prod[j].get_center()
 
-            h_dist = hellinger_distance(cref_center, cref_cov, cprod_center, cprod_cov)
-            c_score = custom_distance(cref_center, cref_cov, cprod_center, cprod_cov)
-            dist = weighted_distance(cref_center, cref_cov, cprod_center, cprod_cov)
-            # dist = bhattacharyya_distance(cref_center, cref_cov, cprod_center, cprod_cov)
-            # dist = mmd(cref_center, cref_cov, cprod_center, cprod_cov)
+            # Here we can use other overlapping scores such as:
+            h_score = hellinger_overlapping_score(cref_center, cref_cov, cprod_center, cprod_cov)
+            c_score = custom_overlapping_score(cref_center, cref_cov, cprod_center, cprod_cov)
+            overlapping_score = weighted_overlapping_score(cref_center, cref_cov, cprod_center, cprod_cov)
 
             if print_statistics:
                 print(f"ref{clusters_ref[i].get_id()} - center: {cref_center}")
                 print(f"prod{j} - center: {cprod_center}")
                 print(
-                    f"hellinger dist: {h_dist} ---- custom dist: {c_score} ----> final dist: {dist}",
+                    f"hellinger dist: {1 - h_score} ---- custom dist: {1 - c_score} ----> final dist: {1-overlapping_score}",
                 )
                 print()
 
             if (
-                dist
-                < overlapping_factor
-                * (0.5)  # TODO change this to adjust the overlapping criteria
+                overlapping_score
+                > epsilon
             ):
                 c_name_ref = "ref" + str(clusters_ref[i].get_id())
                 c_name_prod = "prod" + str(j)
                 G.add_edge(c_name_ref, c_name_prod)
 
-                centers_distances[f"{c_name_ref}{c_name_prod}"] = dist
+                centers_distances[f"{c_name_ref}{c_name_prod}"] = euclidean(np.asarray(cref_center), np.asarray(cprod_center))
                 cov_difference[f"{c_name_ref}{c_name_prod}"] = cref_cov - cprod_cov
 
     if print_graph:
@@ -116,24 +112,23 @@ def MEC(
     return G
 
 
-# Tracking algorithm for multivariate normal distributions clusterings.
-# It uses the clusters result of Gaussian Mixture model then cluster are represented as (mean, covariance_matrix).
-# Must specify also the confidence alpha: larger alpha -> smaller clusters -> more difficult overlapping.
-# GMCT: Gaussian Mixture Clusters Tracking .
-
-
 def GMCT(
     clusters_ref: list[Macrocluster],
     clusters_prod: list[Macrocluster],
-    print_statistics=False,
-    print_results=False,
-    print_graph=False,
-    alpha=0.9,
-    epsilon=0,
-    n_points_per_dimension=500,
-    stop_mode=True,
+    print_statistics: bool = False,
+    print_results: bool = False,
+    print_graph: bool = False,
+    alpha: float = 0.9,
+    epsilon: float = 0,
+    n_points_per_dimension: int = 500,
+    stop_mode: float = True,
 ) -> nx.Graph:
-    """TGMC algorithm for tracking macroclusters in two different timestamps"""
+    """TGMC algorithm for tracking macroclusters in two different timestamps
+    Tracking algorithm for multivariate normal distributions clusterings.
+    It uses the clusters result of Gaussian Mixture model then cluster are represented as (mean, covariance_matrix).
+    Must specify also the confidence alpha: larger alpha -> smaller clusters -> more difficult overlapping.
+    GMCT: Gaussian Mixture Clusters Tracking ."""
+
     n_clusters_ref = len(clusters_ref)
     n_clusters_prod = len(clusters_prod)
 
@@ -171,11 +166,6 @@ def GMCT(
 
             cprod_cov = clusters_prod[j].get_cov()
             cprod_center = clusters_prod[j].get_center()
-
-            # Here we can use other overlapping scores such as:
-            # overlapping_score = hellinger_overlapping_score(cref_center, cref_cov, cprod_center, cprod_cov)
-            # overlapping_score = custom_overlapping_score(cref_center, cref_cov, cprod_center, cprod_cov)
-            # overlapping_score = weighted_overlapping_score(cref_center, cref_cov, cprod_center, cprod_cov)
 
             overlapping_score = montecarlo_overlapping_score(
                 cref_center,
