@@ -1,15 +1,14 @@
-# Snapshot class to keep the information about the current situation of micro/macro clusters and model
 import numpy as np
 import matplotlib.pyplot as plt
 from scripts.utils import array_to_dict
-from scripts.gaussian.core import Macrocluster, Snapshot
+from scripts.gaussian.core import Macrocluster, Snapshot, CluStreamMicroCluster
 from sklearn.base import BaseEstimator
 from scipy.spatial.distance import euclidean
 from scipy.linalg import sqrtm
-from scipy.stats import multivariate_normal, chi2
+from scipy.stats import chi2
 
 
-def compute_min_distance(x, microclusters):
+def compute_min_distance(x: dict, microclusters: list[CluStreamMicroCluster]) -> float:
     """function to compute the minimum distance from a point to any microcluster
 
     Args:
@@ -44,28 +43,6 @@ def compute_radius(points, centroid):
     return radius
 
 
-def overlapping_score(
-    cluster1: Macrocluster, cluster2: Macrocluster, overlapping_factor: float = 1
-) -> float:
-    """Function to compute the overlapping score between two clusters.
-
-    Args:
-        cluster1 (Macrocluster): first cluster
-        cluster2 (Macrocluster): second cluster
-        overlapping_factor (int, optional): parameter to be defined. Defaults to 1.
-
-    Returns:
-        float: overlapping score between the two clusters
-    """
-    center1 = cluster1.get_center()
-    center2 = cluster2.get_center()
-    radius1 = cluster1.get_radius()
-    radius2 = cluster2.get_radius()
-
-    dist = np.linalg.norm(np.array(center1) - np.array(center2))
-    return 2 ** (-(dist / (overlapping_factor * (radius1 + radius2))))
-
-
 def find_closest_cluster(
     new_cluster: Macrocluster, macroclusters: list[Macrocluster]
 ) -> Macrocluster | None:
@@ -92,104 +69,28 @@ def find_closest_cluster(
         return
 
 
-def internal_transition(m1: Macrocluster, m2: Macrocluster):
-    """Given two macroclusters (ideally the same one that survived ie m1 survived as m2) it returns the internal transitions
-    namely the distance between the centers and ratio between radii
-
-    Args:
-        m1 (Macrocluster): first macrocluster
-        m2 (Macrocluster): second macrocluster
-
-    Returns:
-        float, float: distance between centers and ratio between radii
-    """
-    c1 = m1.get_center()
-    c2 = m2.get_center()
-    r1 = m1.get_radius()
-    r2 = m2.get_radius()
-
-    dist = np.linalg.norm(np.array(c1) - np.array(c2))
-    radius_ratio = r1 / r2
-
-    return dist, radius_ratio
-
-
-def get_snapshot_image(
-    snapshot: Snapshot,
-    colors: list[str],
-    x_limits: tuple[float, float] = (-5, 20),
-    y_limits: tuple[float, float] = (-5, 20),
-) -> plt.Figure:
-    """Function to get the fig of clustered image.
-
-    Args:
-        snapshot (Snaphot): snapshot object
-        colors (list[str]): list
-        x_limits (tuple, optional): x-axis limits. Defaults to (-5, 20).
-        y_limits (tuple, optional): y-axis limits. Defaults to (-5, 20).
-
-    Returns:
-        fig: figure object built with matplotlib.pyplot
-    """
-    centers = [d.get_center() for d in snapshot.macroclusters]
-    radii = [d.get_radius() for d in snapshot.macroclusters]
-
-    # labels = [[] for _ in range(snapshot.k)]
-
-    fig, ax = plt.subplots()
-    for i in range(snapshot.microclusters.shape[0]):
-        prediction = snapshot.model.predict_one(
-            {0: snapshot.microclusters[i, 0], 1: snapshot.microclusters[i, 1]}
-        )
-
-        closest_centroid = snapshot.model.macroclusters[prediction]
-        closest_centroid_center = closest_centroid["center"]
-        # closest_centroid_radius = closest_centroid["radius"]
-
-        color = "k"
-
-        for element in snapshot.macroclusters:
-            if element.get_center() == closest_centroid_center:
-                color = colors[element.get_id()]
-                break
-        plt.scatter(
-            snapshot.microclusters[i, 0],
-            snapshot.microclusters[i, 1],
-            alpha=0.5,
-            color=color,
-        )
-
-    plt.scatter(
-        np.array(centers)[:, 0],
-        np.array(centers)[:, 1],
-        alpha=1,
-        color="k",
-        label="centers",
-    )
-    for i in range(len(centers)):
-        center = centers[i]
-        radius = radii[i]
-        circle = plt.Circle(center, radius, color="black", fill=False)
-        plt.scatter(center[0], center[1], alpha=1, color="black")
-        ax.add_patch(circle)
-
-    plt.legend()
-    plt.title(f"Snapshot at {snapshot.timestamp}")
-    # plt.axis('equal')
-    plt.xlim(x_limits)
-    plt.ylim(y_limits)
-    plt.figure(figsize=(10, 10))
-
-    return fig
-
-
 def get_reduced_snapshot_image(
     reducer: BaseEstimator,
-    dimensions: int,
     snapshot: Snapshot,
     colors: list[str],
+    dimensions: int = 3,
     ax_limit: float = 10,
 ) -> plt.Figure:
+    """function to get the snapshot image in 3D or 2D
+
+    Args:
+        reducer (BaseEstimator): algorithm to reduce the data
+        snapshot (Snapshot): snapshot from which take the image
+        colors (list[str]): list of colors
+        dimensions (int, optional): final dimension of the reduction (must be 3 or 2). Defaults to 3.
+        ax_limit (float, optional): axes limits for plotting. Defaults to 10.
+
+    Raises:
+        ValueError: dimensions must be 2 or 3 for plotting.
+
+    Returns:
+        plt.Figure: matplotlib fig ready to be saved or plotted.
+    """
     fig = plt.figure(figsize=(8, 6))  # Adjust figure size as needed
 
     if dimensions == 2:
@@ -250,7 +151,7 @@ def get_reduced_snapshot_image(
 
 
 def bhattacharyya_distance(
-    mean1: list[float], cov1: np.ndarray, mean2: list[float], cov2: np.ndarray
+    mean1: list[float] | np.ndarray, cov1: np.ndarray, mean2: list[float] | np.ndarray, cov2: np.ndarray
 ) -> float:
     """
     Calculates the Bhattacharyya distance between two multivariate normal distributions.
@@ -265,7 +166,8 @@ def bhattacharyya_distance(
         The Bhattacharyya distance.
         Returns np.inf if the combined covariance matrix is singular (not invertible).
     """
-
+    mean1 = np.asarray(mean1) if isinstance(mean1, np.ndarray) else mean1
+    mean2 = np.asarray(mean2) if isinstance(mean2, np.ndarray) else mean2
     try:
         cov = (cov1 + cov2) / 2
         delta_mu = mean1 - mean2
@@ -281,7 +183,7 @@ def bhattacharyya_distance(
 
 
 def hellinger_distance(
-    mean1: list[float], cov1: np.ndarray, mean2: list[float], cov2: np.ndarray
+    mean1: list[float] | np.ndarray, cov1: np.ndarray, mean2: list[float] | np.ndarray, cov2: np.ndarray
 ) -> float:
     """
     Calculates the Hellinger distance between two N-dimensional multivariate
@@ -323,9 +225,9 @@ def hellinger_distance(
 
 
 def mmd(
-    mean1: list[float],
+    mean1: list[float] | np.ndarray,
     cov1: np.ndarray,
-    mean2: list[float],
+    mean2: list[float] | np.ndarray,
     cov2: np.ndarray,
     kernel="rbf",
     gamma=1.0,
@@ -348,8 +250,6 @@ def mmd(
     # Convert to NumPy arrays if they are lists
     mean1 = np.array(mean1) if isinstance(mean1, list) else mean1
     mean2 = np.array(mean2) if isinstance(mean2, list) else mean2
-    cov1 = np.array(cov1) if isinstance(cov1, list) else cov1
-    cov2 = np.array(cov2) if isinstance(cov2, list) else cov2
 
     if kernel == "rbf":  # Gaussian kernel
         k_xx = np.exp(
@@ -393,7 +293,7 @@ def mmd(
 
 
 def wasserstein_distance(
-    mean1: list[float], cov1: np.ndarray, mean2: list[float], cov2: np.ndarray
+    mean1: list[float] | np.ndarray, cov1: np.ndarray, mean2: list[float] | np.ndarray, cov2: np.ndarray
 ) -> float:
     """
     Calculates the Wasserstein-2 distance between two multivariate Gaussian distributions.
@@ -408,6 +308,9 @@ def wasserstein_distance(
         The Wasserstein-2 distance.
         Returns np.inf if the square root of the matrix difference is not real-valued.
     """
+
+    mean1 = np.asarray(mean1) if isinstance(mean1, np.ndarray) else mean1
+    mean2 = np.asarray(mean2) if isinstance(mean2, np.ndarray) else mean2
     delta_mean = mean1 - mean2
     try:
         sqrt_term = sqrtm(cov1) @ sqrtm(cov2)
@@ -426,7 +329,7 @@ def wasserstein_distance(
 
 
 def custom_distance(
-    mean1: list[float], cov1: np.ndarray, mean2: list[float], cov2: np.ndarray
+    mean1: list[float] | np.ndarray, cov1: np.ndarray, mean2: list[float] | np.ndarray, cov2: np.ndarray
 ) -> float:
     """Function to compute the distance between two normal distributions similarly to the custom score definition.
     Instead of using (center, radius), we use (mean, f(variance)). In this specific implementation we use the maximum
@@ -441,6 +344,10 @@ def custom_distance(
     Returns:
         custom distance.
     """
+
+    mean1 = np.asarray(mean1) if isinstance(mean1, np.ndarray) else mean1
+    mean2 = np.asarray(mean2) if isinstance(mean2, np.ndarray) else mean2
+
     # Calculate Euclidean distance between means
     trace1 = np.trace(cov1)
     # num_variables1 = cov1.shape[0]  # Or covariance_matrix.shape[1] since it's square
@@ -454,7 +361,7 @@ def custom_distance(
     average_variance2 = np.max(trace2)
     # average_variance2 =  np.linalg.det(cov2)
 
-    exponent = euclidean(mean1, mean2) / (
+    exponent = euclidean(np.array(mean1), np.array(mean2)) / (
         np.sqrt(average_variance1) + np.sqrt(average_variance2)
     )
     custom_dist = 1 - 2 ** (-exponent)
@@ -463,7 +370,7 @@ def custom_distance(
 
 
 def weighted_distance(
-    mean1: list[float], cov1: np.ndarray, mean2: list[float], cov2: np.ndarray
+    mean1: list[float] | np.ndarray, cov1: np.ndarray, mean2: list[float] | np.ndarray, cov2: np.ndarray
 ) -> float:
     # mean_weight is parameter to be tuned based on how much importance we want to give to the mean distance.
     # When dimensionality is high, covariances tend to be more dissimilar and then the hellinger distance becomes higher even if the means are very close.
@@ -547,13 +454,33 @@ def gmm_inertia(gmm: BaseEstimator, X: np.ndarray) -> float:
 
 
 def generate_points(mean: list[float], cov: np.ndarray, n_points=100000) -> np.ndarray:
+    """Function to generate points from a multivariate normal distribution.
+
+    Args:
+        mean (list[float]): mean of the distribution
+        cov (np.ndarray): covariance matrix of the distribution
+        n_points (int, optional): number of points to generate. Defaults to 100000.
+
+    Returns:
+        np.ndarray: generated points
+    """
     np.random.seed(42)
     points = np.random.multivariate_normal(mean=mean, cov=cov, size=n_points)
     return points
 
 
 def is_inside_hyperellipsoid(point, mean, cov, alpha):
-    """Checks if a point is inside the confidence hyperellipsoid."""
+    """Checks if a point is inside the confidence hyperellipsoid.
+
+    Args:
+        point (list[float]): point to be checked
+        mean (list[float]): mean of the distribution
+        cov (np.ndarray): covariance matrix of the distribution
+        alpha (float): confidence level
+
+    Returns:
+        bool: True if the point is inside the hyperellipsoid, False otherwise.
+    """
 
     n_dim = len(mean)
     df = n_dim
@@ -569,13 +496,32 @@ def is_inside_hyperellipsoid(point, mean, cov, alpha):
 
 
 def compute_overlapping(
-    mean1: list[float],
+    mean1: list[float] | np.ndarray,
     cov1: np.ndarray,
-    mean2: list[float],
+    mean2: list[float] | np.ndarray,
     cov2: np.ndarray,
     alpha: float = 0.9,
-    n_points_per_dimension=500,
+    n_points_per_dimension: int = 500,
+    stop_mode: bool = False,
 ) -> float:
+    """Function to compute the overlapping between 2 distributions given the means anfd the covariance matrices.
+    It is a numerical approach based on the Intersection Over Union.
+
+    Args:
+        mean1 (list[float]): mean of the first distribution
+        cov1 (np.ndarray): covariance of the first distribution
+        mean2 (list[float]):mean of the second distribution
+        cov2 (np.ndarray): mean of the second distribution
+        alpha (float, optional): confidence on the distribution. Defaults to 0.9.
+        n_points_per_dimension (int, optional): (maximum) number of point to be generated for the avaluation. Defaults to 500.
+        stop_mode (bool, optional): flag to decide the mode. True computes the score. False detects the minimum overlapping. Defaults to False
+
+    Raises:
+        ValueError: alpha must be in [0, 1] range.
+
+    Returns:
+        float: overlapping score
+    """
     if alpha <= 0 or alpha >= 1:
         raise ValueError("Alpha should be in the range (0, 1).")
     else:
@@ -594,10 +540,14 @@ def compute_overlapping(
                 count1 += 1
                 if is_inside_hyperellipsoid(point, mean2, cov2, alpha):
                     count_intersection += 1
+                    if stop_mode:
+                        return 1
 
         for point in points2:
             if is_inside_hyperellipsoid(point, mean2, cov2, alpha):
                 count2 += 1
                 if is_inside_hyperellipsoid(point, mean1, cov1, alpha):
                     count_intersection += 1
+                    if stop_mode:
+                        return 1
         return count_intersection / (count1 + count2)

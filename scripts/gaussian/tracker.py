@@ -119,7 +119,7 @@ def MEC(
 # Tracking algorithm for multivariate normal distributions clusterings.
 # It uses the clusters result of Gaussian Mixture model then cluster are represented as (mean, covariance_matrix).
 # Must specify also the confidence alpha: larger alpha -> smaller clusters -> more difficult overlapping.
-# TGMC: Tracking Gaussian Mixture Clusters.
+# GMCT: Gaussian Mixture Clusters Tracking .
 
 
 def GMCT(
@@ -131,6 +131,7 @@ def GMCT(
     alpha=0.9,
     epsilon=0,
     n_points_per_dimension=500,
+    stop_mode=True,
 ) -> nx.Graph:
     """TGMC algorithm for tracking macroclusters in two different timestamps"""
     n_clusters_ref = len(clusters_ref)
@@ -178,7 +179,9 @@ def GMCT(
                 cprod_cov,
                 alpha=alpha,
                 n_points_per_dimension=n_points_per_dimension,
+                stop_mode=stop_mode,
             )
+
             scores[f"{c_name_ref}{c_name_prod}"] = overlapping_score
 
             if print_statistics:
