@@ -574,7 +574,7 @@ def compute_overlapping(
     mean2: list[float],
     cov2: np.ndarray,
     alpha: float = 0.9,
-    n_points_per_dimension=200,
+    n_points_per_dimension=500,
 ) -> float:
     if alpha <= 0 or alpha >= 1:
         raise ValueError("Alpha should be in the range (0, 1).")
