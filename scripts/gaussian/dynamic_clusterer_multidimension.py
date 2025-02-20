@@ -77,6 +77,7 @@ class DynamicClusterer:
         self.id: int = randint(10000, 99999)
         print(f"New model created - id: {self.id}")
 
+        print("Fitting model to reference data...")
         # Fit model into reference data
         for x, _ in stream.iter_array(self.data):
             self.model.learn_one(x)
@@ -90,6 +91,7 @@ class DynamicClusterer:
         # Save a list of macroclusters
         self.macroclusters: list[Macrocluster] = []
 
+        print("Applying macroclustering...")
         for i in range(len(self.model.macroclusters)):
             m = self.model.macroclusters[i]
             new_macrocluster = Macrocluster(id=i, center=m["center"], cov=m["cov"])

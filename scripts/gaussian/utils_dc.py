@@ -190,6 +190,7 @@ def hellinger_distance(
     cov1: np.ndarray,
     mean2: list[float] | np.ndarray,
     cov2: np.ndarray,
+    amplify_factor: float = 1,
 ) -> float:
     """
     Calculates the Hellinger distance between two N-dimensional multivariate
@@ -204,6 +205,9 @@ def hellinger_distance(
     Returns:
         The Hellinger distance between the two distributions.
     """
+
+    mean1 = np.asarray(mean1) if isinstance(mean1, np.ndarray) else mean1
+    mean2 = np.asarray(mean2) if isinstance(mean2, np.ndarray) else mean2
     det_cov1 = np.linalg.det(cov1)
     det_cov2 = np.linalg.det(cov2)
     avg_cov = (cov1 + cov2) / 2
@@ -212,7 +216,7 @@ def hellinger_distance(
     if det_cov_sum == 0:
         det_cov_sum = 1e-10  # Set a small value to avoid division by zero
 
-    diff_mean = np.array(mean1) - np.array(mean2)  # Ensure numpy array for operations
+    diff_mean = mean1 - mean2  # Ensure numpy array for operations
     inv_avg_cov = np.linalg.inv(avg_cov)
 
     exponent = -0.125 * diff_mean.T @ inv_avg_cov @ diff_mean
@@ -223,7 +227,7 @@ def hellinger_distance(
     term2 = np.exp(exponent)
 
     value_inside_sqrt = (
-        1 - np.sqrt(cov1.shape[0] * term1 * term2)
+        1 - amplify_factor * np.sqrt(cov1.shape[0] * term1 * term2)
     )  # Multiply for the size of the data to mitigate the effect of different covariances.
     clipped_value = np.clip(value_inside_sqrt, 0, 1)  # Clip to [0, 1]
 
@@ -305,7 +309,7 @@ def custom_distance(
     average_variance2 = np.max(trace2)
     # average_variance2 =  np.linalg.det(cov2)
 
-    exponent = euclidean(np.array(mean1), np.array(mean2)) / (
+    exponent = euclidean(mean1, mean2) / (
         np.sqrt(average_variance1) + np.sqrt(average_variance2)
     )
     custom_dist = 1 - 2 ** (-exponent)
@@ -353,8 +357,10 @@ def weighted_distance(
     return weighted_dist
 
 
-def gaussian_overlapping_score(cluster1: Macrocluster, cluster2: Macrocluster) -> float:
-    """Function to compute the overlapping score between two clusters.
+def hellinger_overlapping_score(
+    cluster1: Macrocluster, cluster2: Macrocluster
+) -> float:
+    """Function to compute the overlapping score between two clusters using hellinger distance.
 
     Args:
         cluster1 (Macrocluster): first cluster
@@ -364,17 +370,47 @@ def gaussian_overlapping_score(cluster1: Macrocluster, cluster2: Macrocluster) -
     Returns:
         float: overlapping score between the two clusters
     """
-    # dist = hellinger_distance(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov())
-    # dist = weighted_distance(
-    #     cluster1.get_center(),
-    #     cluster1.get_cov(),
-    #     cluster2.get_center(),
-    #     cluster2.get_cov(),
-    # )
-    # dist = bhattacharyya_distance(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov())
-    # dist = mmd(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov(), kernel='rbf', gamma=0.1)
-    # dist = wasserstein_distance(cluster1.get_center(), cluster1.get_cov(), cluster2.get_center(), cluster2.get_cov())
-    dist = 1 - compute_overlapping(
+    dist = hellinger_distance(
+        cluster1.get_center(),
+        cluster1.get_cov(),
+        cluster2.get_center(),
+        cluster2.get_cov(),
+    )
+    return 1 - dist
+
+
+def custom_overlapping_score(cluster1: Macrocluster, cluster2: Macrocluster) -> float:
+    """Function to compute the overlapping score between two clusters using custom distance.
+
+    Args:
+        cluster1 (Macrocluster): first cluster
+        cluster2 (Macrocluster): second cluster
+        overlapping_factor (int, optional): parameter to be defined. Defaults to 1.
+
+    Returns:
+        float: overlapping score between the two clusters
+    """
+    dist = custom_distance(
+        cluster1.get_center(),
+        cluster1.get_cov(),
+        cluster2.get_center(),
+        cluster2.get_cov(),
+    )
+    return 1 - dist
+
+
+def weighted_overlapping_score(cluster1: Macrocluster, cluster2: Macrocluster) -> float:
+    """Function to compute the overlapping score between two clusters using weighted distance.
+
+    Args:
+        cluster1 (Macrocluster): first cluster
+        cluster2 (Macrocluster): second cluster
+        overlapping_factor (int, optional): parameter to be defined. Defaults to 1.
+
+    Returns:
+        float: overlapping score between the two clusters
+    """
+    dist = weighted_distance(
         cluster1.get_center(),
         cluster1.get_cov(),
         cluster2.get_center(),
